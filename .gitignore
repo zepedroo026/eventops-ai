@@ -1,0 +1,34 @@
+# Build results
+bin/
+obj/
+out/
+
+# .NET
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+project.lock.json
+.vs/
+
+# ASP.NET
+appsettings.Development.json
+appsettings.Production.json
+
+# Logs
+*.log
+logs/
+
+# Environment variables (nunca commitar!)
+.env
+.env.local
+.env.*
+
+# Node (frontend)
+node_modules/
+dist/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db
