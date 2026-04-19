@@ -48,6 +48,14 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "BCrypt.Net-Next": {
+              "target": "Package",
+              "version": "[4.0.3, )"
+            },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[9.0.3, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[9.0.3, )"
@@ -194,6 +202,10 @@
           "targetAlias": "net9.0",
           "dependencies": {
             "Microsoft.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[9.0.3, )"
+            },
+            "Microsoft.EntityFrameworkCore.Sqlite": {
               "target": "Package",
               "version": "[9.0.3, )"
             },

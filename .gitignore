@@ -29,6 +29,11 @@ node_modules/
 dist/
 .next/
 
+# SQLite (base de dados local de desenvolvimento)
+*.db
+*.db-shm
+*.db-wal
+
 # OS
 .DS_Store
 Thumbs.db
