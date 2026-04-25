@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import EditEventoModal from '../components/EditEventoModal';
+import EscalaModal from '../components/EscalaModal';
+import { useToast } from '../components/Toast';
 
 /* ── helpers ── */
 const fmtDate     = s => new Date(s).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -62,6 +65,8 @@ export default function EventoDetalhe() {
   const [conflitos,  setConflitos]  = useState([]);
   const [resumo,     setResumo]     = useState(null);
 
+  const [alocacoes,        setAlocacoes]        = useState([]);
+
   const [conflitosLoading, setConflitosLoading] = useState(false);
   const [resumoLoading,    setResumoLoading]    = useState(false);
 
@@ -69,6 +74,11 @@ export default function EventoDetalhe() {
   const [addingAtividade, setAddingAtividade] = useState(false);
   const [addingStaff,     setAddingStaff]     = useState(false);
   const [addingDespesa,   setAddingDespesa]   = useState(false);
+  const [escalaOpen,      setEscalaOpen]      = useState(false);
+  const [editOpen,        setEditOpen]        = useState(false);
+  const [deletingIds,     setDeletingIds]     = useState(new Set());
+
+  const toast = useToast();
 
   /* ── load evento ── */
   useEffect(() => {
@@ -94,6 +104,13 @@ export default function EventoDetalhe() {
       .finally(() => setLoading(false));
   }, [eventoId]);
 
+  /* ── load alocacoes ── */
+  function loadAlocacoes() {
+    api.get(`/alocacoes?eventoId=${eventoId}`)
+      .then(setAlocacoes).catch(() => {});
+  }
+  useEffect(() => { if (evento) loadAlocacoes(); }, [evento]);
+
   /* ── load conflitos ── */
   function loadConflitos() {
     setConflitosLoading(true);
@@ -102,6 +119,22 @@ export default function EventoDetalhe() {
       .finally(() => setConflitosLoading(false));
   }
   useEffect(() => { if (evento) loadConflitos(); }, [evento]);
+
+  /* ── delete helper ── */
+  async function confirmDelete(resource, id, label, onSuccess) {
+    if (!window.confirm(`Remover "${label}"? Esta ação não pode ser desfeita.`)) return;
+    const key = `${resource}-${id}`;
+    setDeletingIds(prev => new Set([...prev, key]));
+    try {
+      await api.delete(`/${resource}/${id}`);
+      toast(`"${label}" removido com sucesso.`);
+      onSuccess();
+    } catch (err) {
+      toast(err.message || 'Erro ao remover.', 'error');
+    } finally {
+      setDeletingIds(prev => { const n = new Set(prev); n.delete(key); return n; });
+    }
+  }
 
   /* ── load resumo ── */
   function loadResumo() {
@@ -125,7 +158,8 @@ export default function EventoDetalhe() {
       try {
         const sala = await api.post('/salas', { nome: form.nome, capacidade: parseInt(form.capacidade) || 0, localizacao: form.localizacao || null, eventoId });
         setSalas(p => [...p, sala]); setAddingSala(false);
-      } catch (ex) { setBusy_err(ex.message || 'Erro ao criar sala.'); }
+        toast('Sala criada com sucesso.');
+      } catch (ex) { setBusy_err(ex.message || 'Erro ao criar sala.'); toast(ex.message || 'Erro ao criar sala.', 'error'); }
       finally { setBusy(false); }
     }
     return (
@@ -156,7 +190,8 @@ export default function EventoDetalhe() {
         const at = await api.post('/atividades', { nome: form.nome, descricao: form.descricao || null, horaInicio: toISO(form.horaInicio), horaFim: toISO(form.horaFim), salaId: Number(form.salaId), eventoId });
         setAtividades(p => [...p, at].sort((a, b) => new Date(a.horaInicio) - new Date(b.horaInicio)));
         setAddingAtividade(false); loadConflitos();
-      } catch (ex) { setErr(ex.message || 'Erro ao criar atividade.'); }
+        toast('Atividade criada com sucesso.');
+      } catch (ex) { setErr(ex.message || 'Erro ao criar atividade.'); toast(ex.message || 'Erro ao criar atividade.', 'error'); }
       finally { setBusy(false); }
     }
     return (
@@ -181,7 +216,8 @@ export default function EventoDetalhe() {
       try {
         const m = await api.post('/staff', { nome: form.nome, funcao: form.funcao || null, contacto: form.contacto || null, eventoId });
         setStaff(p => [...p, m]); setAddingStaff(false);
-      } catch (ex) { setErr(ex.message || 'Erro ao criar membro de staff.'); }
+        toast('Membro de staff criado com sucesso.');
+      } catch (ex) { setErr(ex.message || 'Erro ao criar membro de staff.'); toast(ex.message || 'Erro ao criar membro de staff.', 'error'); }
       finally { setBusy(false); }
     }
     return (
@@ -212,7 +248,8 @@ export default function EventoDetalhe() {
         setDespesas(p => [d, ...p]);
         setAddingDespesa(false);
         loadResumo();
-      } catch (ex) { setErr(ex.message || 'Erro ao registar despesa.'); }
+        toast('Despesa registada com sucesso.');
+      } catch (ex) { setErr(ex.message || 'Erro ao registar despesa.'); toast(ex.message || 'Erro ao registar despesa.', 'error'); }
       finally { setBusy(false); }
     }
     return (
@@ -244,11 +281,96 @@ export default function EventoDetalhe() {
     );
   }
 
+  /* ── Timetable ── */
+  function Timetable() {
+    if (staff.length === 0 || atividades.length === 0) {
+      return (
+        <EmptyState
+          icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>}
+          title="Timetable indisponível"
+          hint="Adiciona staff e atividades para visualizar a grelha de alocações"
+        />
+      );
+    }
+
+    const allocSet = new Set(alocacoes.map(a => `${a.staffId}-${a.atividadeId}`));
+
+    return (
+      <div className="timetable-wrap">
+        <table className="timetable">
+          <thead>
+            <tr>
+              <th className="timetable-staff-col">Staff</th>
+              {atividades.map(a => (
+                <th key={a.id} className="timetable-time-col">
+                  <div className="timetable-th-time">{fmtTime(a.horaInicio)}–{fmtTime(a.horaFim)}</div>
+                  <div className="timetable-th-name">{a.nome}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {staff.map(s => (
+              <tr key={s.id}>
+                <td className="timetable-staff-col">
+                  <span className="timetable-staff-name">{s.nome}</span>
+                  {s.funcao && <span className="timetable-staff-funcao">{s.funcao}</span>}
+                </td>
+                {atividades.map(a => {
+                  const alloc = allocSet.has(`${s.id}-${a.id}`);
+                  return (
+                    <td key={a.id} className={alloc ? 'timetable-cell-alloc' : 'timetable-cell-empty'}>
+                      {alloc ? a.nome : null}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   /* ══════════════════════════════════════════════════════════ */
   /*  RENDER                                                    */
   /* ══════════════════════════════════════════════════════════ */
 
-  if (loading) return <div className="dash-state"><span className="spinner large" /><p>A carregar evento…</p></div>;
+  function EmptyState({ icon, title, hint, onAction, actionLabel }) {
+    return (
+      <div className="section-empty-rich">
+        <div className="section-empty-icon">{icon}</div>
+        <p className="section-empty-title">{title}</p>
+        {hint && <p className="section-empty-hint">{hint}</p>}
+        {onAction && (
+          <button className="btn-primary-sm" onClick={onAction}>{actionLabel}</button>
+        )}
+      </div>
+    );
+  }
+
+  if (loading) return (
+    <div className="detalhe-page">
+      <div className="detalhe-header">
+        <div className="skeleton" style={{ width: 80, height: 32, borderRadius: 8 }} />
+        <div className="skeleton" style={{ width: 260, height: 26, marginTop: 16 }} />
+        <div className="skeleton" style={{ width: 160, height: 14, marginTop: 8 }} />
+        <div className="skeleton" style={{ width: 120, height: 13, marginTop: 6 }} />
+      </div>
+      <div className="detalhe-sections">
+        {[['Salas', 80], ['Run of Show', 140], ['Staff', 100], ['Custos', 100]].map(([t, h]) => (
+          <section key={t} className="detalhe-section">
+            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+              <div className="skeleton" style={{ width: 90, height: 20 }} />
+              <div className="skeleton" style={{ width: 28, height: 20 }} />
+            </div>
+            <div className="skeleton" style={{ height: h }} />
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+
   if (pageError) return (
     <div className="dash-state error">
       <p>{pageError}</p>
@@ -272,6 +394,13 @@ export default function EventoDetalhe() {
         <div className="detalhe-title-row">
           <h2 className="detalhe-title">{evento.nome}</h2>
           {evento.localizacao && <span className="detalhe-location">{evento.localizacao}</span>}
+          <button className="btn-edit" onClick={() => setEditOpen(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Editar
+          </button>
         </div>
         <div className="detalhe-meta">
           <span className="detalhe-dates">{fmtDate(evento.dataInicio)} → {fmtDate(evento.dataFim)}</span>
@@ -287,10 +416,23 @@ export default function EventoDetalhe() {
           <SectionHeader title="Salas" count={salas.length} adding={addingSala} onAdd={() => setAddingSala(v => !v)} />
           {addingSala && <FormSala />}
           {salas.length === 0 && !addingSala
-            ? <p className="section-empty">Nenhuma sala registada.</p>
+            ? <EmptyState
+                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>}
+                title="Nenhuma sala registada"
+                hint="Adiciona os espaços e salas do evento"
+                onAction={() => setAddingSala(true)}
+                actionLabel="+ Adicionar sala"
+              />
             : <div className="salas-grid">{salas.map(s => (
                 <div key={s.id} className="sala-card">
-                  <span className="sala-name">{s.nome}</span>
+                  <div className="sala-card-header">
+                    <span className="sala-name">{s.nome}</span>
+                    <button
+                      className="btn-delete"
+                      disabled={deletingIds.has(`salas-${s.id}`)}
+                      onClick={() => confirmDelete('salas', s.id, s.nome, () => setSalas(p => p.filter(x => x.id !== s.id)))}
+                    >✕</button>
+                  </div>
                   <div className="sala-meta"><span>{s.capacidade} lugares</span>{s.localizacao && <span>{s.localizacao}</span>}</div>
                 </div>
               ))}</div>
@@ -302,7 +444,13 @@ export default function EventoDetalhe() {
           <SectionHeader title="Run of Show" count={atividades.length} adding={addingAtividade} onAdd={() => setAddingAtividade(v => !v)} />
           {addingAtividade && <FormAtividade />}
           {atividades.length === 0 && !addingAtividade
-            ? <p className="section-empty">Nenhuma atividade agendada.</p>
+            ? <EmptyState
+                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>}
+                title="Nenhuma atividade agendada"
+                hint="Constrói o programa do evento com horários e salas"
+                onAction={() => setAddingAtividade(true)}
+                actionLabel="+ Adicionar atividade"
+              />
             : <div className="ros-list">{atividades.map(a => (
                 <div key={a.id} className="ros-item">
                   <div className="ros-time"><span>{fmtTime(a.horaInicio)}</span><span className="ros-time-sep">↓</span><span>{fmtTime(a.horaFim)}</span></div>
@@ -312,6 +460,16 @@ export default function EventoDetalhe() {
                     {salaMap[a.salaId] && <span className="ros-sala">{salaMap[a.salaId]}</span>}
                     {a.descricao && <p className="ros-desc">{a.descricao}</p>}
                   </div>
+                  <button
+                    className="btn-delete"
+                    style={{ alignSelf: 'center' }}
+                    disabled={deletingIds.has(`atividades-${a.id}`)}
+                    onClick={() => confirmDelete('atividades', a.id, a.nome, () => {
+                      setAtividades(p => p.filter(x => x.id !== a.id));
+                      loadConflitos();
+                      loadAlocacoes();
+                    })}
+                  >✕</button>
                 </div>
               ))}</div>
           }
@@ -319,19 +477,80 @@ export default function EventoDetalhe() {
 
         {/* ── Staff ── */}
         <section className="detalhe-section">
-          <SectionHeader title="Staff" count={staff.length} adding={addingStaff} onAdd={() => setAddingStaff(v => !v)} />
+          <SectionHeader
+            title="Staff"
+            count={staff.length}
+            adding={addingStaff}
+            onAdd={() => setAddingStaff(v => !v)}
+            extra={
+              <button
+                type="button"
+                className="btn-ai"
+                onClick={() => setEscalaOpen(true)}
+                title="Gerar alocações automáticas com IA"
+              >
+                ⚡ Gerar Escala
+              </button>
+            }
+          />
           {addingStaff && <FormStaff />}
           {staff.length === 0 && !addingStaff
-            ? <p className="section-empty">Nenhum membro de staff registado.</p>
+            ? <EmptyState
+                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>}
+                title="Nenhum membro de staff"
+                hint="Adiciona a equipa e gera escalas automáticas com IA"
+                onAction={() => setAddingStaff(true)}
+                actionLabel="+ Adicionar staff"
+              />
             : <div className="staff-list">{staff.map(s => (
                 <div key={s.id} className="staff-item">
                   <div className="staff-avatar">{s.nome.charAt(0).toUpperCase()}</div>
                   <div className="staff-info"><span className="staff-nome">{s.nome}</span>{s.funcao && <span className="staff-funcao">{s.funcao}</span>}</div>
                   {s.contacto && <span className="staff-contacto">{s.contacto}</span>}
+                  <button
+                    className="btn-delete"
+                    disabled={deletingIds.has(`staff-${s.id}`)}
+                    onClick={() => confirmDelete('staff', s.id, s.nome, () => {
+                      setStaff(p => p.filter(x => x.id !== s.id));
+                      loadAlocacoes();
+                    })}
+                  >✕</button>
                 </div>
               ))}</div>
           }
         </section>
+
+        {/* ── Timetable do Staff ── */}
+        <section className="detalhe-section">
+          <SectionHeader title="Timetable do Staff" count={alocacoes.length} />
+          <Timetable />
+        </section>
+
+        {escalaOpen && (
+          <EscalaModal
+            eventoId={eventoId}
+            onClose={() => setEscalaOpen(false)}
+            onApplied={() => {
+              setEscalaOpen(false);
+              api.get(`/staff?eventoId=${eventoId}`).then(setStaff).catch(() => {});
+              loadConflitos();
+              loadAlocacoes();
+              toast('Escala aplicada com sucesso.');
+            }}
+          />
+        )}
+
+        {editOpen && (
+          <EditEventoModal
+            evento={evento}
+            onClose={() => setEditOpen(false)}
+            onSaved={updated => {
+              setEvento(updated);
+              setEditOpen(false);
+              toast('Evento atualizado com sucesso.');
+            }}
+          />
+        )}
 
         {/* ── Custos ── */}
         <section className="detalhe-section">
@@ -389,7 +608,13 @@ export default function EventoDetalhe() {
 
           {/* lista de despesas */}
           {despesas.length === 0 && !addingDespesa && !resumoLoading && (
-            <p className="section-empty" style={{ marginTop: resumo ? 12 : 0 }}>Nenhuma despesa registada.</p>
+            <EmptyState
+              icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h3a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3H15"/></svg>}
+              title="Nenhuma despesa registada"
+              hint="Regista custos para controlar o orçamento"
+              onAction={() => setAddingDespesa(true)}
+              actionLabel="+ Adicionar despesa"
+            />
           )}
           {despesas.length > 0 && (
             <div className="despesas-list">
@@ -403,6 +628,14 @@ export default function EventoDetalhe() {
                     <span className="despesa-valor">{fmtCurrency(d.valor)}</span>
                     <span className="despesa-data">{fmtDate(d.data)}</span>
                   </div>
+                  <button
+                    className="btn-delete"
+                    disabled={deletingIds.has(`despesas-${d.id}`)}
+                    onClick={() => confirmDelete('despesas', d.id, d.descricao, () => {
+                      setDespesas(p => p.filter(x => x.id !== d.id));
+                      loadResumo();
+                    })}
+                  >✕</button>
                 </div>
               ))}
             </div>

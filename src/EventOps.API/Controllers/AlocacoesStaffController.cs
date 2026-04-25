@@ -48,6 +48,15 @@ public class AlocacoesStaffController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = alocacao.Id }, alocacao);
     }
 
+    // GET /api/alocacoes?eventoId=X
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<AlocacaoStaff>>> GetAll([FromQuery] int eventoId)
+    {
+        return Ok(await db.AlocacoesStaff
+            .Where(a => a.Atividade!.EventoId == eventoId)
+            .ToListAsync());
+    }
+
     // GET /api/alocacoes/{id}  — usado pelo CreatedAtAction
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AlocacaoStaff>> GetById(int id)

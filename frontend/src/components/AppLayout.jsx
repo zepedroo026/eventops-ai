@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import NovoEventoModal from './NovoEventoModal';
 
 export default function AppLayout() {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   const user = (() => {
@@ -19,20 +21,29 @@ export default function AppLayout() {
 
   function handleCreated(evento) {
     setModalOpen(false);
+    setSidebarOpen(false);
     navigate(`/eventos/${evento.id}`);
   }
 
+  function closeSidebar() { setSidebarOpen(false); }
+
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      {/* Mobile overlay */}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={closeSidebar} />}
+
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <span className="sidebar-brand-icon">⚡</span>
-            <span className="sidebar-brand-name">EventOps</span>
+            <Logo size={24} />
           </div>
 
           <nav className="sidebar-nav">
-            <NavLink to="/dashboard" className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}>
+            <NavLink
+              to="/dashboard"
+              className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
+              onClick={closeSidebar}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
@@ -55,6 +66,13 @@ export default function AppLayout() {
       </aside>
 
       <main className="app-content">
+        <button
+          className="sidebar-hamburger"
+          onClick={() => setSidebarOpen(v => !v)}
+          aria-label="Abrir menu"
+        >
+          <span /><span /><span />
+        </button>
         <Outlet />
       </main>
 
