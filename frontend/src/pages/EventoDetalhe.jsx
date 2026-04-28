@@ -136,6 +136,55 @@ export default function EventoDetalhe() {
     }
   }
 
+  /* ── PDF export ── */
+  async function exportarPDF() {
+    const { default: html2pdf } = await import('html2pdf.js');
+    const rows = atividades.map(a => {
+      const staffNomes = alocacoes
+        .filter(al => al.atividadeId === a.id)
+        .map(al => staff.find(s => s.id === al.staffId)?.nome)
+        .filter(Boolean)
+        .join(', ');
+      return `
+        <tr>
+          <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">
+            ${fmtTime(a.horaInicio)} – ${fmtTime(a.horaFim)}
+          </td>
+          <td style="padding:8px 10px;border:1px solid #ddd;font-weight:600">${a.nome}</td>
+          <td style="padding:8px 10px;border:1px solid #ddd;color:#7c3aed">${salaMap[a.salaId] || '—'}</td>
+          <td style="padding:8px 10px;border:1px solid #ddd;color:#555">${staffNomes || '—'}</td>
+        </tr>`;
+    }).join('');
+    const html = `
+      <div style="font-family:Arial,sans-serif;color:#111;padding:24px">
+        <h1 style="font-size:22px;margin:0 0 4px">${evento.nome}</h1>
+        ${evento.localizacao ? `<p style="color:#666;font-size:13px;margin:0 0 2px">${evento.localizacao}</p>` : ''}
+        <p style="color:#888;font-size:12px;margin:0 0 20px">
+          ${fmtDate(evento.dataInicio)} → ${fmtDate(evento.dataFim)}
+        </p>
+        <h2 style="font-size:15px;border-bottom:2px solid #aa3bff;padding-bottom:6px;margin:0 0 14px">
+          Run of Show
+        </h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#f5f3ff">
+              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Hora</th>
+              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Atividade</th>
+              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Sala</th>
+              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Staff</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    html2pdf().set({
+      margin: 10,
+      filename: `${evento.nome} - Run of Show.pdf`,
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    }).from(html).save();
+  }
+
   /* ── load resumo ── */
   function loadResumo() {
     setResumoLoading(true);
@@ -208,9 +257,37 @@ export default function EventoDetalhe() {
   }
 
   function FormStaff() {
-    const [form, setForm] = useState({ nome: '', funcao: '', contacto: '' });
-    const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+    const [form,          setForm]          = useState({ nome: '', funcao: '', contacto: '' });
+    const [err,           setErr]           = useState('');
+    const [busy,          setBusy]          = useState(false);
+    const [staffUsers,    setStaffUsers]    = useState([]);
+    const [loadingUsers,  setLoadingUsers]  = useState(true);
+    const [selectedId,    setSelectedId]    = useState('');
+    const [modoManual,    setModoManual]    = useState(false);
+
     const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }));
+
+    useEffect(() => {
+      api.get('/utilizadores/staff')
+        .then(setStaffUsers)
+        .catch(() => {})
+        .finally(() => setLoadingUsers(false));
+    }, []);
+
+    function handleSelectUser(e) {
+      const val = e.target.value;
+      setSelectedId(val);
+      if (!val) { setForm({ nome: '', funcao: '', contacto: '' }); return; }
+      const u = staffUsers.find(u => u.id === Number(val));
+      if (u) setForm({ nome: u.nome, funcao: 'Staff', contacto: u.email });
+    }
+
+    function toggleModo() {
+      setModoManual(v => !v);
+      setSelectedId('');
+      setForm({ nome: '', funcao: '', contacto: '' });
+    }
+
     async function submit(e) {
       e.preventDefault(); setErr(''); setBusy(true);
       try {
@@ -220,13 +297,52 @@ export default function EventoDetalhe() {
       } catch (ex) { setErr(ex.message || 'Erro ao criar membro de staff.'); toast(ex.message || 'Erro ao criar membro de staff.', 'error'); }
       finally { setBusy(false); }
     }
+
+    const showDropdown = !modoManual && staffUsers.length > 0;
+
     return (
       <InlineForm onCancel={() => setAddingStaff(false)} onSubmit={submit} loading={busy} error={err}>
-        <div className="inline-form-grid">
-          <div className="field"><label>Nome *</label><input type="text" value={form.nome} onChange={set('nome')} placeholder="Nome completo" required /></div>
-          <div className="field"><label>Função</label><input type="text" value={form.funcao} onChange={set('funcao')} placeholder="Ex: Técnico de Som" /></div>
-          <div className="field" style={{ gridColumn: '1/-1' }}><label>Contacto</label><input type="text" value={form.contacto} onChange={set('contacto')} placeholder="Email ou telefone" /></div>
-        </div>
+        {loadingUsers ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+            <span className="spinner" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+            A carregar utilizadores…
+          </div>
+        ) : (
+          <>
+            {showDropdown && (
+              <div className="field" style={{ gridColumn: '1/-1' }}>
+                <label>Utilizador registado</label>
+                <select className="field-select" value={selectedId} onChange={handleSelectUser}>
+                  <option value="">— Selecionar da lista —</option>
+                  {staffUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.nome} · {u.email}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="inline-form-grid">
+              <div className="field">
+                <label>Nome *</label>
+                <input type="text" value={form.nome} onChange={set('nome')} placeholder="Nome completo" required />
+              </div>
+              <div className="field">
+                <label>Função</label>
+                <input type="text" value={form.funcao} onChange={set('funcao')} placeholder="Ex: Técnico de Som" />
+              </div>
+              <div className="field" style={{ gridColumn: '1/-1' }}>
+                <label>Contacto</label>
+                <input type="text" value={form.contacto} onChange={set('contacto')} placeholder="Email ou telefone" />
+              </div>
+            </div>
+
+            {staffUsers.length > 0 && (
+              <button type="button" className="staff-mode-toggle" onClick={toggleModo}>
+                {modoManual ? '← Selecionar da lista de utilizadores' : '+ Adicionar manualmente sem conta'}
+              </button>
+            )}
+          </>
+        )}
       </InlineForm>
     );
   }
@@ -441,7 +557,22 @@ export default function EventoDetalhe() {
 
         {/* ── Run of Show ── */}
         <section className="detalhe-section">
-          <SectionHeader title="Run of Show" count={atividades.length} adding={addingAtividade} onAdd={() => setAddingAtividade(v => !v)} />
+          <SectionHeader
+            title="Run of Show"
+            count={atividades.length}
+            adding={addingAtividade}
+            onAdd={() => setAddingAtividade(v => !v)}
+            extra={
+              atividades.length > 0 && (
+                <button type="button" className="btn-pdf" onClick={exportarPDF} title="Exportar cronograma para PDF">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
+                  </svg>
+                  Exportar PDF
+                </button>
+              )
+            }
+          />
           {addingAtividade && <FormAtividade />}
           {atividades.length === 0 && !addingAtividade
             ? <EmptyState

@@ -2,10 +2,12 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 import PrivateRoute from './components/PrivateRoute';
 import { ToastProvider } from './components/Toast';
+import AdminDashboard from './pages/AdminDashboard';
 import Dashboard from './pages/Dashboard';
 import EventoDetalhe from './pages/EventoDetalhe';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import StaffDashboard from './pages/StaffDashboard';
 
 export default function App() {
   return (
@@ -17,8 +19,10 @@ export default function App() {
 
           <Route element={<PrivateRoute />}>
             <Route element={<AppLayout />}>
-              <Route path="/dashboard"   element={<Dashboard />} />
-              <Route path="/eventos/:id" element={<EventoDetalhe />} />
+              <Route path="/dashboard"        element={<Dashboard />} />
+              <Route path="/staff-dashboard"  element={<StaffDashboard />} />
+              <Route path="/admin"            element={<AdminDashboard />} />
+              <Route path="/eventos/:id"      element={<EventoDetalhe />} />
             </Route>
           </Route>
 

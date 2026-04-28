@@ -20,6 +20,9 @@ export default function Dashboard() {
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState('');
   const [conflictCounts, setConflictCounts] = useState({});
+  const [deletingEvIds,  setDeletingEvIds]  = useState(new Set());
+  const [totalStaff,     setTotalStaff]     = useState(null);
+  const [totalDespesas,  setTotalDespesas]  = useState(null);
   const navigate = useNavigate();
 
   function load() {
@@ -43,9 +46,27 @@ export default function Dashboard() {
         }
       })
       .finally(() => setLoading(false));
+
+    api.get('/staff').then(s => setTotalStaff((s ?? []).length)).catch(() => {});
+    api.get('/despesas').then(d => setTotalDespesas((d ?? []).reduce((acc, x) => acc + (x.valor ?? 0), 0))).catch(() => {});
   }
 
   useEffect(load, []);
+
+  /* ── delete event ── */
+  async function handleDeleteEvento(e, ev) {
+    e.stopPropagation();
+    if (!window.confirm(`Eliminar o evento "${ev.nome}"?\nEsta ação não pode ser desfeita.`)) return;
+    setDeletingEvIds(p => new Set([...p, ev.id]));
+    try {
+      await api.delete(`/eventos/${ev.id}`);
+      setEventos(p => p.filter(x => x.id !== ev.id));
+    } catch {
+      setError('Não foi possível eliminar o evento.');
+    } finally {
+      setDeletingEvIds(p => { const n = new Set(p); n.delete(ev.id); return n; });
+    }
+  }
 
   /* metrics */
   const now      = new Date();
@@ -66,7 +87,7 @@ export default function Dashboard() {
 
       {/* ── Metrics ── */}
       {!loading && !error && (
-        <div className="metrics-grid">
+        <div className="metrics-grid metrics-grid-5">
           <div className="metric-card">
             <span className="metric-value">{eventos.length}</span>
             <span className="metric-label">Total de Eventos</span>
@@ -79,12 +100,28 @@ export default function Dashboard() {
             <span className="metric-value metric-accent">{proximos.length}</span>
             <span className="metric-label">Próximos</span>
           </div>
+          <div className="metric-card">
+            <span className="metric-value">
+              {totalStaff === null
+                ? <span className="skeleton" style={{ display: 'inline-block', width: 40, height: 28, borderRadius: 4 }} />
+                : totalStaff}
+            </span>
+            <span className="metric-label">Total de Staff</span>
+          </div>
+          <div className="metric-card">
+            <span className="metric-value metric-accent" style={{ fontSize: 20 }}>
+              {totalDespesas === null
+                ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28, borderRadius: 4 }} />
+                : fmtCur(totalDespesas)}
+            </span>
+            <span className="metric-label">Total de Despesas</span>
+          </div>
         </div>
       )}
 
       {loading && (
-        <div className="metrics-grid">
-          {[1,2,3].map(i => <div key={i} className="metric-card skeleton" style={{ height: 80 }} />)}
+        <div className="metrics-grid metrics-grid-5">
+          {[1,2,3,4,5].map(i => <div key={i} className="metric-card skeleton" style={{ height: 80 }} />)}
         </div>
       )}
 
@@ -114,7 +151,7 @@ export default function Dashboard() {
       {!loading && !error && eventos.length > 0 && (
         <div className="events-grid">
           {eventos.map(ev => {
-            const status   = getStatus(ev);
+            const status    = getStatus(ev);
             const nConflits = conflictCounts[ev.id] ?? 0;
             return (
               <article
@@ -129,6 +166,12 @@ export default function Dashboard() {
                   <div className="event-card-title-row">
                     <h3 className="event-name">{ev.nome}</h3>
                     <span className={`event-status status-${status}`}>{statusLabel[status]}</span>
+                    <button
+                      className="btn-delete"
+                      disabled={deletingEvIds.has(ev.id)}
+                      title="Eliminar evento"
+                      onClick={e => handleDeleteEvento(e, ev)}
+                    >✕</button>
                   </div>
                   {ev.localizacao && <span className="event-location">{ev.localizacao}</span>}
                 </div>

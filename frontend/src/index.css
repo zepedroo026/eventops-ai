@@ -773,12 +773,84 @@ a    { color: var(--accent); }
   opacity: 0;
   transition: opacity .15s, background .15s, color .15s;
 }
-.sala-card:hover   .btn-delete,
-.ros-item:hover    .btn-delete,
-.staff-item:hover  .btn-delete,
-.despesa-item:hover .btn-delete { opacity: 1; }
+.sala-card:hover    .btn-delete,
+.ros-item:hover     .btn-delete,
+.staff-item:hover   .btn-delete,
+.despesa-item:hover .btn-delete,
+.event-card:hover   .btn-delete { opacity: 1; }
 .btn-delete:hover   { background: var(--danger-bg); color: var(--danger); }
 .btn-delete:disabled { opacity: .3 !important; cursor: not-allowed; }
+
+/* ── btn-pdf ─────────────────────────────────────────────────── */
+.btn-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: 500 12px var(--sans);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  white-space: nowrap;
+}
+.btn-pdf:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+/* ── Staff Dashboard ─────────────────────────────────────────── */
+.staff-dash-section {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.staff-task-list { display: flex; flex-direction: column; gap: 0; }
+
+.staff-task-item {
+  display: grid;
+  grid-template-columns: 52px 2px 1fr auto;
+  gap: 0 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.staff-task-item:last-child { border-bottom: none; }
+
+.staff-task-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text);
+  padding-top: 2px;
+}
+
+.staff-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+.staff-task-name  { font-size: 14px; font-weight: 600; color: var(--text-h); }
+.staff-task-sala  { font-size: 11px; color: var(--accent); font-weight: 500; }
+.staff-task-evento {
+  font-size: 11px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 1px 7px;
+  width: fit-content;
+}
+
+.staff-task-date {
+  font-size: 11px;
+  color: var(--text);
+  align-self: center;
+  white-space: nowrap;
+  padding-left: 8px;
+}
 
 /* Salas */
 .salas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
@@ -861,6 +933,21 @@ a    { color: var(--accent); }
 .staff-nome { font-size: 14px; font-weight: 600; color: var(--text-h); }
 .staff-funcao { font-size: 12px; color: var(--text); }
 .staff-contacto { font-size: 12px; color: var(--text); margin-left: auto; }
+
+/* ── Staff form mode toggle ──────────────────────────────────── */
+.staff-mode-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: 500 12px var(--sans);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color .12s;
+  align-self: flex-start;
+}
+.staff-mode-toggle:hover { color: var(--accent); }
 
 /* ── btn-ai ─────────────────────────────────────────────────── */
 .btn-ai {
@@ -1287,6 +1374,8 @@ a    { color: var(--accent); }
   gap: 14px;
   margin-bottom: 28px;
 }
+.metrics-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.metrics-grid-5 { grid-template-columns: repeat(5, 1fr); }
 .metric-card {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1429,12 +1518,84 @@ a    { color: var(--accent); }
   .sidebar-overlay { display: block; }
   .sidebar-hamburger { display: flex; }
   .app-content { padding-top: 56px; }
-  .metrics-grid { grid-template-columns: 1fr 1fr; }
-  .metrics-grid .metric-card:last-child { grid-column: 1 / -1; }
+  .metrics-grid  { grid-template-columns: 1fr 1fr; }
+  .metrics-grid  .metric-card:last-child { grid-column: 1 / -1; }
+  .metrics-grid-4,
+  .metrics-grid-5 { grid-template-columns: 1fr 1fr; }
+  .metrics-grid-4 .metric-card:last-child,
+  .metrics-grid-5 .metric-card:last-child { grid-column: 1 / -1; }
   .detalhe-header { padding-top: 8px; }
+  .admin-table th:nth-child(2) { display: none; }
+  .admin-table td:nth-child(2) { display: none; }
 }
 
 @media (max-width: 400px) {
-  .metrics-grid { grid-template-columns: 1fr; }
-  .metrics-grid .metric-card:last-child { grid-column: auto; }
+  .metrics-grid,
+  .metrics-grid-4,
+  .metrics-grid-5 { grid-template-columns: 1fr; }
+  .metrics-grid   .metric-card:last-child,
+  .metrics-grid-4 .metric-card:last-child,
+  .metrics-grid-5 .metric-card:last-child { grid-column: auto; }
 }
+
+/* ── Admin Dashboard ─────────────────────────────────────────── */
+.admin-section {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.admin-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr { transition: background .1s; }
+.admin-table tbody tr:hover td { background: var(--accent-bg); }
+
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font: 700 13px var(--sans);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.admin-user-nome { font-weight: 600; color: var(--text-h); }
+.admin-email     { font-size: 13px; color: var(--text); }
+.admin-date      { font-size: 12px; color: var(--text); white-space: nowrap; }

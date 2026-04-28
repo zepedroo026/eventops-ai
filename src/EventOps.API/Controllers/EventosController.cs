@@ -3,6 +3,8 @@ using EventOps.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace EventOps.API.Controllers;
 
@@ -14,10 +16,18 @@ public class EventosController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Evento>>> GetAll()
     {
-        var eventos = await db.Eventos
-            .Include(e => e.Organizador)
-            .ToListAsync();
-        return Ok(eventos);
+        var query = db.Eventos.Include(e => e.Organizador).AsQueryable();
+
+        // Organizadores only see their own events; Admins see everything
+        if (User.IsInRole("Organizador"))
+        {
+            var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                      ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(sub, out var userId))
+                query = query.Where(e => e.OrganizadorId == userId);
+        }
+
+        return Ok(await query.ToListAsync());
     }
 
     [HttpGet("{id:int}")]

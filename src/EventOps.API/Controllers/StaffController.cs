@@ -3,6 +3,8 @@ using EventOps.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace EventOps.API.Controllers;
 
@@ -24,6 +26,25 @@ public record AplicarEscalaResultDto(int Criadas, int Duplicadas);
 [Route("api/[controller]")]
 public class StaffController(AppDbContext db) : ControllerBase
 {
+    // GET /api/staff/me — allocations for the logged-in staff user (matched by contact email)
+    [HttpGet("me")]
+    public async Task<ActionResult> GetMe()
+    {
+        var email = User.FindFirstValue(JwtRegisteredClaimNames.Email)
+                    ?? User.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrEmpty(email)) return Unauthorized();
+
+        var staffMembers = await db.Staff
+            .Where(s => s.Contacto == email)
+            .Include(s => s.Alocacoes)
+                .ThenInclude(a => a.Atividade)
+                    .ThenInclude(at => at!.Sala)
+            .Include(s => s.Evento)
+            .ToListAsync();
+
+        return Ok(staffMembers);
+    }
+
     // GET /api/staff?eventoId=X
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Staff>>> GetAll([FromQuery] int? eventoId)
