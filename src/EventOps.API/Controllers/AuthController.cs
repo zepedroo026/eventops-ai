@@ -44,6 +44,9 @@ public class AuthController(AppDbContext db, TokenService tokenService) : Contro
         if (utilizador is null || !BCrypt.Net.BCrypt.Verify(req.Password, utilizador.PasswordHash))
             return Unauthorized("Email ou password incorretos.");
 
+        if (utilizador.Bloqueado)
+            return StatusCode(StatusCodes.Status403Forbidden, "Conta bloqueada.");
+
         var (token, expira) = tokenService.Generate(utilizador);
         return Ok(new AuthResponse(token, utilizador.Nome, utilizador.Email, utilizador.Perfil.ToString(), expira));
     }
