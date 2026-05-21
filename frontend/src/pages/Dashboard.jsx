@@ -23,6 +23,8 @@ export default function Dashboard() {
   const [deletingEvIds,  setDeletingEvIds]  = useState(new Set());
   const [totalStaff,     setTotalStaff]     = useState(null);
   const [totalDespesas,  setTotalDespesas]  = useState(null);
+  const [busca,          setBusca]          = useState('');
+  const [filtroStatus,   setFiltroStatus]   = useState('todos');
   const navigate = useNavigate();
 
   function load() {
@@ -74,14 +76,32 @@ export default function Dashboard() {
     const d = new Date(ev.dataInicio);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   });
-  const proximos  = eventos.filter(ev => getStatus(ev) === 'proximo');
+  const proximos = eventos.filter(ev => getStatus(ev) === 'proximo');
+
+  /* client-side search + filter */
+  const eventosFiltrados = eventos.filter(ev => {
+    const matchBusca  = ev.nome.toLowerCase().includes(busca.toLowerCase());
+    const matchStatus = filtroStatus === 'todos' || getStatus(ev) === filtroStatus;
+    return matchBusca && matchStatus;
+  });
+
+  const FILTROS = [
+    { key: 'todos',     label: 'Todos' },
+    { key: 'proximo',   label: 'Próximo' },
+    { key: 'decorrer',  label: 'A Decorrer' },
+    { key: 'terminado', label: 'Terminado' },
+  ];
 
   return (
     <div className="dash-page">
       <div className="dash-title-row">
         <h2>Eventos</h2>
         {!loading && !error && (
-          <span className="dash-count">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
+          <span className="dash-count">
+            {eventosFiltrados.length !== eventos.length
+              ? `${eventosFiltrados.length} de ${eventos.length}`
+              : `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`}
+          </span>
         )}
       </div>
 
@@ -125,6 +145,38 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Search + filters ── */}
+      {!loading && !error && eventos.length > 0 && (
+        <div className="dash-filters">
+          <div className="dash-search-wrap">
+            <svg className="dash-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              className="dash-search"
+              type="search"
+              placeholder="Pesquisar evento…"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+            />
+            {busca && (
+              <button className="dash-search-clear" onClick={() => setBusca('')} aria-label="Limpar">✕</button>
+            )}
+          </div>
+          <div className="dash-filter-btns">
+            {FILTROS.map(f => (
+              <button
+                key={f.key}
+                className={`filter-btn${filtroStatus === f.key ? ' active' : ''}`}
+                onClick={() => setFiltroStatus(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading && (
         <div className="events-grid" style={{ marginTop: 24 }}>
           {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 180, borderRadius: 12 }} />)}
@@ -148,9 +200,24 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!loading && !error && eventos.length > 0 && (
+      {!loading && !error && eventos.length > 0 && eventosFiltrados.length === 0 && (
+        <div className="dash-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'var(--border)' }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <p style={{ fontWeight: 600, color: 'var(--text-h)' }}>Nenhum resultado</p>
+          <p style={{ fontSize: 14 }}>
+            {busca ? `Nenhum evento encontrado para "${busca}"` : 'Nenhum evento com este estado'}
+          </p>
+          <button className="btn-secondary" onClick={() => { setBusca(''); setFiltroStatus('todos'); }}>
+            Limpar filtros
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && eventosFiltrados.length > 0 && (
         <div className="events-grid">
-          {eventos.map(ev => {
+          {eventosFiltrados.map(ev => {
             const status    = getStatus(ev);
             const nConflits = conflictCounts[ev.id] ?? 0;
             return (

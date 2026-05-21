@@ -39,6 +39,7 @@ public class EventosController(AppDbContext db) : ControllerBase
             .Include(e => e.Atividades)
             .Include(e => e.Staff)
             .Include(e => e.Despesas)
+            .Include(e => e.Tarefas)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (evento is null) return NotFound();
@@ -76,4 +77,17 @@ public class EventosController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    [HttpPatch("{id:int}/notas")]
+    public async Task<IActionResult> AtualizarNotas(int id, [FromBody] AtualizarNotasRequest req)
+    {
+        var evento = await db.Eventos.FindAsync(id);
+        if (evento is null) return NotFound();
+
+        evento.Notas = req.Notas;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
 }
+
+public record AtualizarNotasRequest(string? Notas);

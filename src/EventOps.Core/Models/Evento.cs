@@ -11,8 +11,10 @@ public class Evento
     public decimal OrcamentoMaximo { get; set; }
     public int OrganizadorId { get; set; }
     public Utilizador? Organizador { get; set; }
+    public string? Notas { get; set; }
     public ICollection<Sala> Salas { get; set; } = new List<Sala>();
     public ICollection<Atividade> Atividades { get; set; } = new List<Atividade>();
     public ICollection<Staff> Staff { get; set; } = new List<Staff>();
     public ICollection<Despesa> Despesas { get; set; } = new List<Despesa>();
+    public ICollection<Tarefa> Tarefas { get; set; } = new List<Tarefa>();
 }

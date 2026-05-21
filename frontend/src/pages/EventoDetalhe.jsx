@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import EditEventoModal from '../components/EditEventoModal';
@@ -64,19 +64,27 @@ export default function EventoDetalhe() {
   const [despesas,   setDespesas]   = useState([]);
   const [conflitos,  setConflitos]  = useState([]);
   const [resumo,     setResumo]     = useState(null);
+  const [tarefas,    setTarefas]    = useState([]);
+  const [notasLocal, setNotasLocal] = useState('');
+  const [notasSaving, setNotasSaving] = useState(false);
+  const [notasSaved,  setNotasSaved]  = useState(false);
 
   const [alocacoes,        setAlocacoes]        = useState([]);
 
-  const [conflitosLoading, setConflitosLoading] = useState(false);
-  const [resumoLoading,    setResumoLoading]    = useState(false);
+  const [conflitosLoading,    setConflitosLoading]    = useState(false);
+  const [conflitosVerificados, setConflitosVerificados] = useState(false);
+  const [resumoLoading,        setResumoLoading]        = useState(false);
 
   const [addingSala,      setAddingSala]      = useState(false);
   const [addingAtividade, setAddingAtividade] = useState(false);
   const [addingStaff,     setAddingStaff]     = useState(false);
   const [addingDespesa,   setAddingDespesa]   = useState(false);
+  const [addingTarefa,    setAddingTarefa]    = useState(false);
   const [escalaOpen,      setEscalaOpen]      = useState(false);
   const [editOpen,        setEditOpen]        = useState(false);
   const [deletingIds,     setDeletingIds]     = useState(new Set());
+  const [togglingTarefas, setTogglingTarefas] = useState(new Set());
+  const notasDebounce = useRef(null);
 
   const toast = useToast();
 
@@ -93,6 +101,8 @@ export default function EventoDetalhe() {
         setDespesas([...(ev.despesas ?? [])].sort(
           (a, b) => new Date(b.data) - new Date(a.data)
         ));
+        setTarefas([...(ev.tarefas ?? [])].sort((a, b) => a.id - b.id));
+        setNotasLocal(ev.notas ?? '');
       })
       .catch(err => {
         if (err.message.includes('401') || err.message.includes('403')) {
@@ -115,7 +125,8 @@ export default function EventoDetalhe() {
   function loadConflitos() {
     setConflitosLoading(true);
     api.get(`/atividades/conflitos?eventoId=${eventoId}`)
-      .then(setConflitos).catch(() => setConflitos([]))
+      .then(cs => { setConflitos(cs); setConflitosVerificados(true); })
+      .catch(() => { setConflitos([]); setConflitosVerificados(true); })
       .finally(() => setConflitosLoading(false));
   }
   useEffect(() => { if (evento) loadConflitos(); }, [evento]);
@@ -183,6 +194,34 @@ export default function EventoDetalhe() {
       html2canvas: { scale: 2 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
     }).from(html).save();
+  }
+
+  /* ── notas debounce ── */
+  const handleNotasChange = useCallback((val) => {
+    setNotasLocal(val);
+    setNotasSaved(false);
+    clearTimeout(notasDebounce.current);
+    notasDebounce.current = setTimeout(async () => {
+      setNotasSaving(true);
+      try {
+        await api.patch(`/eventos/${eventoId}/notas`, { notas: val || null });
+        setNotasSaved(true);
+      } catch { /* silent */ }
+      finally { setNotasSaving(false); }
+    }, 1000);
+  }, [eventoId]);
+
+  /* ── toggle tarefa ── */
+  async function handleToggleTarefa(t) {
+    setTogglingTarefas(p => new Set([...p, t.id]));
+    try {
+      const res = await api.put(`/tarefas/${t.id}/toggle`, {});
+      setTarefas(p => p.map(x => x.id === t.id ? { ...x, concluida: res.concluida } : x));
+    } catch (err) {
+      toast(err.message || 'Erro ao atualizar tarefa.', 'error');
+    } finally {
+      setTogglingTarefas(p => { const n = new Set(p); n.delete(t.id); return n; });
+    }
   }
 
   /* ── load resumo ── */
@@ -397,6 +436,28 @@ export default function EventoDetalhe() {
     );
   }
 
+  function FormTarefa() {
+    const [descricao, setDescricao] = useState('');
+    const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+    async function submit(e) {
+      e.preventDefault(); setErr(''); setBusy(true);
+      try {
+        const t = await api.post('/tarefas', { descricao, eventoId });
+        setTarefas(p => [...p, t]); setAddingTarefa(false);
+        toast('Tarefa adicionada.');
+      } catch (ex) { setErr(ex.message || 'Erro ao criar tarefa.'); }
+      finally { setBusy(false); }
+    }
+    return (
+      <InlineForm onCancel={() => setAddingTarefa(false)} onSubmit={submit} loading={busy} error={err}>
+        <div className="field">
+          <label>Descrição *</label>
+          <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex: Confirmar som" required />
+        </div>
+      </InlineForm>
+    );
+  }
+
   /* ── Timetable ── */
   function Timetable() {
     if (staff.length === 0 || atividades.length === 0) {
@@ -496,6 +557,18 @@ export default function EventoDetalhe() {
 
   const salaMap = Object.fromEntries(salas.map(s => [s.id, s.nome]));
 
+  /* ── progresso do evento ── */
+  const progCriteria = {
+    sala:        salas.length > 0,
+    atividade:   atividades.length > 0,
+    staffAlocado: alocacoes.length > 0,
+    semConflitos: conflitosVerificados && conflitos.length === 0,
+    orcamento:   (evento.orcamentoMaximo ?? 0) > 0,
+  };
+  const progPts  = Object.values(progCriteria).filter(Boolean).length * 20;
+  const progLabel = progPts === 100 ? 'Completo' : progPts >= 60 ? 'Em progresso' : 'Incompleto';
+  const progColor = progPts === 100 ? 'var(--success)' : progPts >= 60 ? 'var(--accent)' : 'var(--danger)';
+
   /* budget bar helpers */
   const pct        = resumo ? Math.min(resumo.percentagemUtilizada, 100) : 0;
   const over        = resumo ? resumo.percentagemUtilizada > 100 : false;
@@ -522,6 +595,33 @@ export default function EventoDetalhe() {
           <span className="detalhe-dates">{fmtDate(evento.dataInicio)} → {fmtDate(evento.dataFim)}</span>
           <span className="detalhe-budget">{fmtCurrency(evento.orcamentoMaximo)}</span>
           {evento.descricao && <p className="detalhe-desc">{evento.descricao}</p>}
+        </div>
+
+        {/* ── progress bar ── */}
+        <div className="ev-progress">
+          <div className="ev-progress-header">
+            <span className="ev-progress-label" style={{ color: progColor }}>{progLabel}</span>
+            <span className="ev-progress-pct" style={{ color: progColor }}>{progPts}%</span>
+          </div>
+          <div className="ev-progress-track">
+            <div
+              className="ev-progress-fill"
+              style={{ width: `${progPts}%`, background: progColor }}
+            />
+          </div>
+          <div className="ev-progress-criteria">
+            {[
+              { ok: progCriteria.sala,         label: 'Sala' },
+              { ok: progCriteria.atividade,    label: 'Atividade' },
+              { ok: progCriteria.staffAlocado, label: 'Staff alocado' },
+              { ok: progCriteria.semConflitos, label: 'Sem conflitos', pending: !conflitosVerificados },
+              { ok: progCriteria.orcamento,    label: 'Orçamento' },
+            ].map(c => (
+              <span key={c.label} className={`ev-progress-chip${c.ok ? ' ok' : ''}${c.pending ? ' pending' : ''}`}>
+                {c.pending ? '…' : c.ok ? '✓' : '·'} {c.label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -771,6 +871,79 @@ export default function EventoDetalhe() {
               ))}
             </div>
           )}
+        </section>
+
+        {/* ── Checklist ── */}
+        <section className="detalhe-section">
+          {(() => {
+            const total = tarefas.length;
+            const feitas = tarefas.filter(t => t.concluida).length;
+            return (
+              <SectionHeader
+                title="Checklist"
+                count={total > 0 ? `${feitas}/${total}` : 0}
+                countClass={total > 0 && feitas === total ? 'success' : ''}
+                adding={addingTarefa}
+                onAdd={() => setAddingTarefa(v => !v)}
+              />
+            );
+          })()}
+          {addingTarefa && <FormTarefa />}
+          {tarefas.length === 0 && !addingTarefa
+            ? <EmptyState
+                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>}
+                title="Nenhuma tarefa"
+                hint="Adiciona itens de checklist para acompanhar o progresso"
+                onAction={() => setAddingTarefa(true)}
+                actionLabel="+ Adicionar tarefa"
+              />
+            : (
+              <div className="checklist-list">
+                {tarefas.map(t => (
+                  <div key={t.id} className={`checklist-item${t.concluida ? ' done' : ''}`}>
+                    <button
+                      className={`checklist-checkbox${t.concluida ? ' checked' : ''}`}
+                      disabled={togglingTarefas.has(t.id)}
+                      onClick={() => handleToggleTarefa(t)}
+                      aria-label={t.concluida ? 'Marcar como pendente' : 'Marcar como concluída'}
+                    >
+                      {t.concluida && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="2 6 5 9 10 3" />
+                        </svg>
+                      )}
+                    </button>
+                    <span className="checklist-desc">{t.descricao}</span>
+                    <button
+                      className="btn-delete"
+                      disabled={deletingIds.has(`tarefas-${t.id}`)}
+                      onClick={() => confirmDelete('tarefas', t.id, t.descricao, () =>
+                        setTarefas(p => p.filter(x => x.id !== t.id))
+                      )}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </section>
+
+        {/* ── Notas ── */}
+        <section className="detalhe-section">
+          <div className="section-title-row">
+            <h3>Notas</h3>
+            <span className="notas-status">
+              {notasSaving && <><span className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} /> A guardar…</>}
+              {!notasSaving && notasSaved && '✓ Guardado'}
+            </span>
+          </div>
+          <textarea
+            className="notas-textarea"
+            value={notasLocal}
+            onChange={e => handleNotasChange(e.target.value)}
+            placeholder="Escreve notas livres sobre este evento…"
+            rows={5}
+          />
         </section>
 
         {/* ── Conflitos ── */}

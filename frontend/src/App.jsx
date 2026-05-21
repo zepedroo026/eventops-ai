@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import Dashboard from './pages/Dashboard';
 import EventoDetalhe from './pages/EventoDetalhe';
 import Login from './pages/Login';
+import Profile from './pages/Profile';
 import Register from './pages/Register';
 import StaffDashboard from './pages/StaffDashboard';
 
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/dashboard"        element={<Dashboard />} />
               <Route path="/staff-dashboard"  element={<StaffDashboard />} />
               <Route path="/admin"            element={<AdminDashboard />} />
+              <Route path="/perfil"           element={<Profile />} />
               <Route path="/eventos/:id"      element={<EventoDetalhe />} />
             </Route>
           </Route>

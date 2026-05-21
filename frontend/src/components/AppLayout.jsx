@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import Logo from './Logo';
 import NovoEventoModal from './NovoEventoModal';
 
@@ -96,7 +96,9 @@ export default function AppLayout() {
 
         <div className="sidebar-footer">
           <div className="sidebar-user-info">
-            <span className="sidebar-user-name">{user.nome}</span>
+            <Link to="/perfil" className="sidebar-user-name sidebar-profile-link" onClick={closeSidebar}>
+              {user.nome}
+            </Link>
             {user.perfil && <span className="badge">{user.perfil}</span>}
           </div>
           <button className="btn-logout" onClick={handleLogout}>Sair</button>

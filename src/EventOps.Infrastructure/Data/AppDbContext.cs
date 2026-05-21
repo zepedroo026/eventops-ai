@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<Staff> Staff { get; set; }
     public DbSet<AlocacaoStaff> AlocacoesStaff { get; set; }
     public DbSet<Despesa> Despesas { get; set; }
+    public DbSet<Tarefa> Tarefas { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,5 +61,10 @@ public class AppDbContext : DbContext
             .HasOne(d => d.Evento)
             .WithMany(e => e.Despesas)
             .HasForeignKey(d => d.EventoId);
+
+        modelBuilder.Entity<Tarefa>()
+            .HasOne(t => t.Evento)
+            .WithMany(e => e.Tarefas)
+            .HasForeignKey(t => t.EventoId);
     }
 }

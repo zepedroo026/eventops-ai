@@ -2,8 +2,11 @@ using EventOps.API.DTOs;
 using EventOps.API.Services;
 using EventOps.Core.Models;
 using EventOps.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace EventOps.API.Controllers;
 
@@ -49,5 +52,32 @@ public class AuthController(AppDbContext db, TokenService tokenService) : Contro
 
         var (token, expira) = tokenService.Generate(utilizador);
         return Ok(new AuthResponse(token, utilizador.Nome, utilizador.Email, utilizador.Perfil.ToString(), expira));
+    }
+
+    [Authorize]
+    [HttpPut("perfil")]
+    public async Task<ActionResult<AtualizarPerfilResponse>> AtualizarPerfil(AtualizarPerfilRequest req)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(sub, out var userId)) return Unauthorized();
+
+        var utilizador = await db.Utilizadores.FindAsync(userId);
+        if (utilizador is null) return NotFound();
+
+        if (!string.IsNullOrEmpty(req.NovaPassword))
+        {
+            if (string.IsNullOrEmpty(req.PasswordAtual))
+                return BadRequest("A password atual é obrigatória para alterar a password.");
+            if (!BCrypt.Net.BCrypt.Verify(req.PasswordAtual, utilizador.PasswordHash))
+                return BadRequest("Password atual incorreta.");
+            utilizador.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NovaPassword);
+        }
+
+        utilizador.Nome = req.Nome.Trim();
+        await db.SaveChangesAsync();
+
+        return Ok(new AtualizarPerfilResponse(utilizador.Nome, utilizador.Email, utilizador.Perfil.ToString()));
     }
 }
