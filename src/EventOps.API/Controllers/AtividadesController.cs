@@ -25,6 +25,7 @@ public class AtividadesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<Atividade>>> GetAll([FromQuery] int? eventoId)
     {
         var query = db.Atividades
+            .AsNoTracking()
             .Include(a => a.Sala)
             .AsQueryable();
 
@@ -39,6 +40,7 @@ public class AtividadesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<ConflitosDto>>> GetConflitos([FromQuery] int eventoId)
     {
         var atividades = await db.Atividades
+            .AsNoTracking()
             .Where(a => a.EventoId == eventoId)
             .Include(a => a.Sala)
             .Include(a => a.Alocacoes)
@@ -116,6 +118,7 @@ public class AtividadesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<Atividade>> GetById(int id)
     {
         var atividade = await db.Atividades
+            .AsNoTracking()
             .Include(a => a.Sala)
             .Include(a => a.Alocacoes)
                 .ThenInclude(al => al.Staff)

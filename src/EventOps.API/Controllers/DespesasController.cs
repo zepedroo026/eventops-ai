@@ -24,7 +24,7 @@ public class DespesasController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Despesa>>> GetAll([FromQuery] int? eventoId)
     {
-        var query = db.Despesas.AsQueryable();
+        var query = db.Despesas.AsNoTracking().AsQueryable();
 
         if (eventoId.HasValue)
             query = query.Where(d => d.EventoId == eventoId.Value);
@@ -36,10 +36,13 @@ public class DespesasController(AppDbContext db) : ControllerBase
     [HttpGet("resumo")]
     public async Task<ActionResult<ResumoDto>> GetResumo([FromQuery] int eventoId)
     {
-        var evento = await db.Eventos.FindAsync(eventoId);
+        var evento = await db.Eventos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == eventoId);
         if (evento is null) return NotFound($"Evento com id {eventoId} não existe.");
 
         var despesas = await db.Despesas
+            .AsNoTracking()
             .Where(d => d.EventoId == eventoId)
             .ToListAsync();
 

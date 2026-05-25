@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 import PrivateRoute from './components/PrivateRoute';
 import { ToastProvider } from './components/Toast';
 import AdminDashboard from './pages/AdminDashboard';
@@ -12,6 +13,7 @@ import StaffDashboard from './pages/StaffDashboard';
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <ToastProvider>
       <BrowserRouter>
         <Routes>
@@ -32,5 +34,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </ToastProvider>
+    </ErrorBoundary>
   );
 }

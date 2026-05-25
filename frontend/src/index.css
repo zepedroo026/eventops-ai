@@ -1995,3 +1995,118 @@ a    { color: var(--accent); }
   transition: color .15s;
 }
 .sidebar-profile-link:hover { color: var(--accent); }
+
+/* ── ROS date label ──────────────────────────────────────────── */
+.ros-date-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  color: var(--accent);
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+/* ── Timetable date header ───────────────────────────────────── */
+.timetable-th-date {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+/* ── Botão Alocar ────────────────────────────────────────────── */
+.btn-alocar {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-alocar:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── Modal de alocação ───────────────────────────────────────── */
+.aloc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.aloc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+.aloc-item:hover { border-color: var(--accent); }
+.aloc-item.checked {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.aloc-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.aloc-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.aloc-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aloc-item-time {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.aloc-item-sala {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* modal-footer (reutilizável) */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}

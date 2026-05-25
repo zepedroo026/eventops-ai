@@ -53,6 +53,7 @@ public class AlocacoesStaffController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<AlocacaoStaff>>> GetAll([FromQuery] int eventoId)
     {
         return Ok(await db.AlocacoesStaff
+            .AsNoTracking()
             .Where(a => a.Atividade!.EventoId == eventoId)
             .ToListAsync());
     }
@@ -62,6 +63,7 @@ public class AlocacoesStaffController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<AlocacaoStaff>> GetById(int id)
     {
         var alocacao = await db.AlocacoesStaff
+            .AsNoTracking()
             .Include(a => a.Staff)
             .Include(a => a.Atividade)
             .FirstOrDefaultAsync(a => a.Id == id);

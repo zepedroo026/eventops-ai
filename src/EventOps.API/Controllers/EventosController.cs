@@ -16,7 +16,10 @@ public class EventosController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Evento>>> GetAll()
     {
-        var query = db.Eventos.Include(e => e.Organizador).AsQueryable();
+        var query = db.Eventos
+            .AsNoTracking()
+            .Include(e => e.Organizador)
+            .AsQueryable();
 
         // Organizadores only see their own events; Admins see everything
         if (User.IsInRole("Organizador"))
@@ -34,6 +37,7 @@ public class EventosController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<Evento>> GetById(int id)
     {
         var evento = await db.Eventos
+            .AsNoTracking()
             .Include(e => e.Organizador)
             .Include(e => e.Salas)
             .Include(e => e.Atividades)

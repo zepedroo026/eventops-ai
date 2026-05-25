@@ -8,8 +8,9 @@ import { useToast } from '../components/Toast';
 /* ── helpers ── */
 const fmtDate     = s => new Date(s).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
 const fmtTime     = s => new Date(s).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const fmtDateOnly = s => new Date(s).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtDateTime = s => `${fmtDateOnly(s)} ${fmtTime(s)}`;
 const fmtCurrency = v => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
-const toISO       = s => new Date(s).toISOString();
 const todayLocal  = () => new Date().toISOString().slice(0, 10);
 
 /* ── InlineForm ── */
@@ -85,6 +86,7 @@ export default function EventoDetalhe() {
   const [deletingIds,     setDeletingIds]     = useState(new Set());
   const [togglingTarefas, setTogglingTarefas] = useState(new Set());
   const notasDebounce = useRef(null);
+  const [alocacaoModalStaff, setAlocacaoModalStaff] = useState(null);
 
   const toast = useToast();
 
@@ -92,6 +94,7 @@ export default function EventoDetalhe() {
   useEffect(() => {
     api.get(`/eventos/${eventoId}`)
       .then(ev => {
+        if (!ev) { setPageError('Evento não encontrado.'); return; }
         setEvento(ev);
         setSalas(ev.salas ?? []);
         setAtividades([...(ev.atividades ?? [])].sort(
@@ -116,8 +119,8 @@ export default function EventoDetalhe() {
 
   /* ── load alocacoes ── */
   function loadAlocacoes() {
-    api.get(`/alocacoes?eventoId=${eventoId}`)
-      .then(setAlocacoes).catch(() => {});
+    return api.get(`/alocacoes?eventoId=${eventoId}`)
+      .then(data => setAlocacoes(data ?? [])).catch(() => {});
   }
   useEffect(() => { if (evento) loadAlocacoes(); }, [evento]);
 
@@ -125,7 +128,7 @@ export default function EventoDetalhe() {
   function loadConflitos() {
     setConflitosLoading(true);
     api.get(`/atividades/conflitos?eventoId=${eventoId}`)
-      .then(cs => { setConflitos(cs); setConflitosVerificados(true); })
+      .then(cs => { setConflitos(cs ?? []); setConflitosVerificados(true); })
       .catch(() => { setConflitos([]); setConflitosVerificados(true); })
       .finally(() => setConflitosLoading(false));
   }
@@ -148,52 +151,52 @@ export default function EventoDetalhe() {
   }
 
   /* ── PDF export ── */
-  async function exportarPDF() {
-    const { default: html2pdf } = await import('html2pdf.js');
+  function exportarPDF() {
+    const map = Object.fromEntries(salas.map(s => [s.id, s.nome]));
     const rows = atividades.map(a => {
       const staffNomes = alocacoes
         .filter(al => al.atividadeId === a.id)
         .map(al => staff.find(s => s.id === al.staffId)?.nome)
         .filter(Boolean)
         .join(', ');
-      return `
-        <tr>
-          <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">
-            ${fmtTime(a.horaInicio)} – ${fmtTime(a.horaFim)}
-          </td>
-          <td style="padding:8px 10px;border:1px solid #ddd;font-weight:600">${a.nome}</td>
-          <td style="padding:8px 10px;border:1px solid #ddd;color:#7c3aed">${salaMap[a.salaId] || '—'}</td>
-          <td style="padding:8px 10px;border:1px solid #ddd;color:#555">${staffNomes || '—'}</td>
-        </tr>`;
+      return `<tr>
+        <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${fmtDateTime(a.horaInicio)} – ${fmtTime(a.horaFim)}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;font-weight:600">${a.nome}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;color:#7c3aed">${map[a.salaId] || '—'}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;color:#555">${staffNomes || '—'}</td>
+      </tr>`;
     }).join('');
-    const html = `
-      <div style="font-family:Arial,sans-serif;color:#111;padding:24px">
-        <h1 style="font-size:22px;margin:0 0 4px">${evento.nome}</h1>
-        ${evento.localizacao ? `<p style="color:#666;font-size:13px;margin:0 0 2px">${evento.localizacao}</p>` : ''}
-        <p style="color:#888;font-size:12px;margin:0 0 20px">
-          ${fmtDate(evento.dataInicio)} → ${fmtDate(evento.dataFim)}
-        </p>
-        <h2 style="font-size:15px;border-bottom:2px solid #aa3bff;padding-bottom:6px;margin:0 0 14px">
-          Run of Show
-        </h2>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="background:#f5f3ff">
-              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Hora</th>
-              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Atividade</th>
-              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Sala</th>
-              <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Staff</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-    html2pdf().set({
-      margin: 10,
-      filename: `${evento.nome} - Run of Show.pdf`,
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    }).from(html).save();
+    const html = `<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>${evento.nome} – Run of Show</title>
+      <style>
+        body { font-family: Arial, sans-serif; color: #111; padding: 24px; }
+        @media print { .no-print { display: none; } }
+      </style>
+    </head><body>
+      <button class="no-print" onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">
+        🖨 Imprimir / Guardar PDF
+      </button>
+      <h1 style="font-size:22px;margin:0 0 4px">${evento.nome}</h1>
+      ${evento.localizacao ? `<p style="color:#666;font-size:13px;margin:0 0 2px">${evento.localizacao}</p>` : ''}
+      <p style="color:#888;font-size:12px;margin:0 0 20px">${fmtDate(evento.dataInicio)} → ${fmtDate(evento.dataFim)}</p>
+      <h2 style="font-size:15px;border-bottom:2px solid #aa3bff;padding-bottom:6px;margin:0 0 14px">Run of Show</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f5f3ff">
+            <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Data / Hora</th>
+            <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Atividade</th>
+            <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Sala</th>
+            <th style="text-align:left;padding:8px 10px;border:1px solid #ddd">Staff</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body></html>`;
+    const win = window.open('', '_blank', 'width=960,height=680');
+    if (!win) { alert('Permite popups neste site para exportar o PDF.'); return; }
+    win.document.write(html);
+    win.document.close();
   }
 
   /* ── notas debounce ── */
@@ -239,19 +242,19 @@ export default function EventoDetalhe() {
 
   function FormSala() {
     const [form, setForm] = useState({ nome: '', capacidade: '', localizacao: '' });
-    const [err, setBusy_err] = useState(''); const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
     const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }));
     async function submit(e) {
-      e.preventDefault(); setBusy_err(''); setBusy(true);
+      e.preventDefault(); setErr(''); setBusy(true);
       try {
         const sala = await api.post('/salas', { nome: form.nome, capacidade: parseInt(form.capacidade) || 0, localizacao: form.localizacao || null, eventoId });
         setSalas(p => [...p, sala]); setAddingSala(false);
         toast('Sala criada com sucesso.');
-      } catch (ex) { setBusy_err(ex.message || 'Erro ao criar sala.'); toast(ex.message || 'Erro ao criar sala.', 'error'); }
+      } catch (ex) { setErr(ex.message || 'Erro ao criar sala.'); toast(ex.message || 'Erro ao criar sala.', 'error'); }
       finally { setBusy(false); }
     }
     return (
-      <InlineForm onCancel={() => setAddingSala(false)} onSubmit={submit} loading={busy} error={setBusy_err}>
+      <InlineForm onCancel={() => setAddingSala(false)} onSubmit={submit} loading={busy} error={err}>
         <div className="inline-form-grid">
           <div className="field"><label>Nome *</label><input type="text" value={form.nome} onChange={set('nome')} placeholder="Ex: Auditório A" required /></div>
           <div className="field"><label>Capacidade *</label><input type="number" min="1" value={form.capacidade} onChange={set('capacidade')} placeholder="100" required /></div>
@@ -262,7 +265,7 @@ export default function EventoDetalhe() {
   }
 
   function FormAtividade() {
-    const [form, setForm] = useState({ nome: '', horaInicio: '', horaFim: '', salaId: salas[0]?.id ?? '', descricao: '' });
+    const [form, setForm] = useState({ nome: '', data: todayLocal(), horaInicio: '', horaFim: '', salaId: salas[0]?.id ?? '', descricao: '' });
     const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
     const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }));
     if (salas.length === 0) return (
@@ -273,9 +276,14 @@ export default function EventoDetalhe() {
     );
     async function submit(e) {
       e.preventDefault(); setErr(''); setBusy(true);
-      if (new Date(form.horaInicio) >= new Date(form.horaFim)) { setErr('A hora de início deve ser anterior à hora de fim.'); setBusy(false); return; }
+      if (!form.data || !form.horaInicio || !form.horaFim) {
+        setErr('Preenche a data e as horas de início e fim.'); setBusy(false); return;
+      }
+      const inicio = `${form.data}T${form.horaInicio}:00`;
+      const fim    = `${form.data}T${form.horaFim}:00`;
+      if (new Date(inicio) >= new Date(fim)) { setErr('A hora de início deve ser anterior à hora de fim.'); setBusy(false); return; }
       try {
-        const at = await api.post('/atividades', { nome: form.nome, descricao: form.descricao || null, horaInicio: toISO(form.horaInicio), horaFim: toISO(form.horaFim), salaId: Number(form.salaId), eventoId });
+        const at = await api.post('/atividades', { nome: form.nome, descricao: form.descricao || null, horaInicio: inicio, horaFim: fim, salaId: Number(form.salaId), eventoId });
         setAtividades(p => [...p, at].sort((a, b) => new Date(a.horaInicio) - new Date(b.horaInicio)));
         setAddingAtividade(false); loadConflitos();
         toast('Atividade criada com sucesso.');
@@ -286,8 +294,9 @@ export default function EventoDetalhe() {
       <InlineForm onCancel={() => setAddingAtividade(false)} onSubmit={submit} loading={busy} error={err}>
         <div className="inline-form-grid">
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Nome *</label><input type="text" value={form.nome} onChange={set('nome')} placeholder="Ex: Keynote de abertura" required /></div>
-          <div className="field"><label>Hora de início *</label><input type="datetime-local" value={form.horaInicio} onChange={set('horaInicio')} required /></div>
-          <div className="field"><label>Hora de fim *</label><input type="datetime-local" value={form.horaFim} onChange={set('horaFim')} required /></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}><label>Data *</label><input type="date" value={form.data} onChange={set('data')} required /></div>
+          <div className="field"><label>Hora de início *</label><input type="time" value={form.horaInicio} onChange={set('horaInicio')} required /></div>
+          <div className="field"><label>Hora de fim *</label><input type="time" value={form.horaFim} onChange={set('horaFim')} required /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Sala *</label><select className="field-select" value={form.salaId} onChange={set('salaId')} required>{salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}</select></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Descrição</label><textarea className="field-textarea" rows={2} value={form.descricao} onChange={set('descricao')} placeholder="Opcional" /></div>
         </div>
@@ -480,6 +489,7 @@ export default function EventoDetalhe() {
               <th className="timetable-staff-col">Staff</th>
               {atividades.map(a => (
                 <th key={a.id} className="timetable-time-col">
+                  <div className="timetable-th-date">{fmtDateOnly(a.horaInicio)}</div>
                   <div className="timetable-th-time">{fmtTime(a.horaInicio)}–{fmtTime(a.horaFim)}</div>
                   <div className="timetable-th-name">{a.nome}</div>
                 </th>
@@ -505,6 +515,83 @@ export default function EventoDetalhe() {
             ))}
           </tbody>
         </table>
+      </div>
+    );
+  }
+
+  /* ── Alocação Manual Modal ── */
+  function AlocacaoModal({ staffMembro, onClose }) {
+    const sMap = Object.fromEntries(salas.map(s => [s.id, s.nome]));
+    const [checkedIds, setCheckedIds] = useState(
+      () => new Set(alocacoes.filter(al => al.staffId === staffMembro.id).map(al => al.atividadeId))
+    );
+    const [busy, setBusy] = useState(new Set());
+    const [err,  setErr]  = useState('');
+
+    async function toggle(atividadeId) {
+      const isChecked = checkedIds.has(atividadeId);
+      setBusy(p => new Set([...p, atividadeId]));
+      setErr('');
+      try {
+        if (isChecked) {
+          const aloc = alocacoes.find(al => al.staffId === staffMembro.id && al.atividadeId === atividadeId);
+          if (aloc) await api.delete(`/alocacoes/${aloc.id}`);
+          setCheckedIds(p => { const n = new Set(p); n.delete(atividadeId); return n; });
+        } else {
+          await api.post('/alocacoes', { staffId: staffMembro.id, atividadeId, eventoId });
+          setCheckedIds(p => new Set([...p, atividadeId]));
+        }
+        loadAlocacoes();
+      } catch (ex) {
+        setErr(ex.message || 'Erro ao atualizar alocação.');
+      } finally {
+        setBusy(p => { const n = new Set(p); n.delete(atividadeId); return n; });
+      }
+    }
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+          <div className="modal-header">
+            <div>
+              <h3 style={{ margin: 0 }}>Alocar {staffMembro.nome}</h3>
+              {staffMembro.funcao && <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text)' }}>{staffMembro.funcao}</p>}
+            </div>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+
+          {atividades.length === 0
+            ? <p className="section-empty" style={{ padding: '16px 0' }}>Nenhuma atividade criada ainda.</p>
+            : (
+              <div className="aloc-list">
+                {atividades.map(a => (
+                  <label key={a.id} className={`aloc-item${checkedIds.has(a.id) ? ' checked' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={checkedIds.has(a.id)}
+                      disabled={busy.has(a.id)}
+                      onChange={() => toggle(a.id)}
+                    />
+                    <div className="aloc-item-info">
+                      <span className="aloc-item-name">{a.nome}</span>
+                      <span className="aloc-item-time">{fmtDateTime(a.horaInicio)} – {fmtTime(a.horaFim)}</span>
+                      {sMap[a.salaId] && <span className="aloc-item-sala">{sMap[a.salaId]}</span>}
+                    </div>
+                    {busy.has(a.id) && (
+                      <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, marginLeft: 'auto', flexShrink: 0 }} />
+                    )}
+                  </label>
+                ))}
+              </div>
+            )
+          }
+
+          {err && <p className="inline-form-error" style={{ margin: '8px 0 0' }}>{err}</p>}
+
+          <div className="modal-footer" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn-primary-sm" onClick={onClose}>Fechar</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -554,6 +641,9 @@ export default function EventoDetalhe() {
       <button className="btn-secondary" onClick={() => navigate('/dashboard')}>← Voltar</button>
     </div>
   );
+
+  /* Guarda adicional — nunca deve acontecer mas evita crash se evento for null */
+  if (!evento) return null;
 
   const salaMap = Object.fromEntries(salas.map(s => [s.id, s.nome]));
 
@@ -684,7 +774,12 @@ export default function EventoDetalhe() {
               />
             : <div className="ros-list">{atividades.map(a => (
                 <div key={a.id} className="ros-item">
-                  <div className="ros-time"><span>{fmtTime(a.horaInicio)}</span><span className="ros-time-sep">↓</span><span>{fmtTime(a.horaFim)}</span></div>
+                  <div className="ros-time">
+                    <span className="ros-date-label">{fmtDateOnly(a.horaInicio)}</span>
+                    <span>{fmtTime(a.horaInicio)}</span>
+                    <span className="ros-time-sep">↓</span>
+                    <span>{fmtTime(a.horaFim)}</span>
+                  </div>
                   <div className="ros-bar" />
                   <div className="ros-body">
                     <span className="ros-name">{a.nome}</span>
@@ -739,6 +834,11 @@ export default function EventoDetalhe() {
                   <div className="staff-info"><span className="staff-nome">{s.nome}</span>{s.funcao && <span className="staff-funcao">{s.funcao}</span>}</div>
                   {s.contacto && <span className="staff-contacto">{s.contacto}</span>}
                   <button
+                    className="btn-alocar"
+                    onClick={() => setAlocacaoModalStaff(s)}
+                    title="Alocar a atividades"
+                  >Alocar</button>
+                  <button
                     className="btn-delete"
                     disabled={deletingIds.has(`staff-${s.id}`)}
                     onClick={() => confirmDelete('staff', s.id, s.nome, () => {
@@ -763,7 +863,7 @@ export default function EventoDetalhe() {
             onClose={() => setEscalaOpen(false)}
             onApplied={() => {
               setEscalaOpen(false);
-              api.get(`/staff?eventoId=${eventoId}`).then(setStaff).catch(() => {});
+              api.get(`/staff?eventoId=${eventoId}`).then(s => setStaff(s ?? [])).catch(() => {});
               loadConflitos();
               loadAlocacoes();
               toast('Escala aplicada com sucesso.');
@@ -780,6 +880,13 @@ export default function EventoDetalhe() {
               setEditOpen(false);
               toast('Evento atualizado com sucesso.');
             }}
+          />
+        )}
+
+        {alocacaoModalStaff && (
+          <AlocacaoModal
+            staffMembro={alocacaoModalStaff}
+            onClose={() => setAlocacaoModalStaff(null)}
           />
         )}
 

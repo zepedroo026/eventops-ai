@@ -35,6 +35,7 @@ public class StaffController(AppDbContext db) : ControllerBase
         if (string.IsNullOrEmpty(email)) return Unauthorized();
 
         var staffMembers = await db.Staff
+            .AsNoTracking()
             .Where(s => s.Contacto == email)
             .Include(s => s.Alocacoes)
                 .ThenInclude(a => a.Atividade)
@@ -49,7 +50,7 @@ public class StaffController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Staff>>> GetAll([FromQuery] int? eventoId)
     {
-        var query = db.Staff.AsQueryable();
+        var query = db.Staff.AsNoTracking().AsQueryable();
         if (eventoId.HasValue)
             query = query.Where(s => s.EventoId == eventoId.Value);
         return Ok(await query.OrderBy(s => s.Nome).ToListAsync());
@@ -60,6 +61,7 @@ public class StaffController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<Staff>> GetById(int id)
     {
         var staff = await db.Staff
+            .AsNoTracking()
             .Include(s => s.Alocacoes).ThenInclude(a => a.Atividade)
             .FirstOrDefaultAsync(s => s.Id == id);
         if (staff is null) return NotFound();
@@ -112,11 +114,13 @@ public class StaffController(AppDbContext db) : ControllerBase
             return NotFound($"Evento com id {eventoId} não existe.");
 
         var atividades = await db.Atividades
+            .AsNoTracking()
             .Where(a => a.EventoId == eventoId)
             .OrderBy(a => a.HoraInicio)
             .ToListAsync();
 
         var staff = await db.Staff
+            .AsNoTracking()
             .Where(s => s.EventoId == eventoId)
             .ToListAsync();
 
@@ -125,6 +129,7 @@ public class StaffController(AppDbContext db) : ControllerBase
 
         // Alocações já existentes para este evento (para não repetir)
         var jaAlocados = await db.AlocacoesStaff
+            .AsNoTracking()
             .Where(a => a.Atividade!.EventoId == eventoId)
             .Include(a => a.Atividade)
             .ToListAsync();

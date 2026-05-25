@@ -80,7 +80,7 @@ export default function Dashboard() {
 
   /* client-side search + filter */
   const eventosFiltrados = eventos.filter(ev => {
-    const matchBusca  = ev.nome.toLowerCase().includes(busca.toLowerCase());
+    const matchBusca  = (ev.nome ?? '').toLowerCase().includes(busca.toLowerCase());
     const matchStatus = filtroStatus === 'todos' || getStatus(ev) === filtroStatus;
     return matchBusca && matchStatus;
   });
