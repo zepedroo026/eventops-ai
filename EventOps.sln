@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventOps.Core", "src\EventO
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventOps.Infrastructure", "src\EventOps.Infrastructure\EventOps.Infrastructure.csproj", "{ED661C40-D114-44BC-9E8E-DD14A96ECCA6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventOps.Tests", "src\EventOps.Tests\EventOps.Tests.csproj", "{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{ED661C40-D114-44BC-9E8E-DD14A96ECCA6}.Release|x64.Build.0 = Release|Any CPU
 		{ED661C40-D114-44BC-9E8E-DD14A96ECCA6}.Release|x86.ActiveCfg = Release|Any CPU
 		{ED661C40-D114-44BC-9E8E-DD14A96ECCA6}.Release|x86.Build.0 = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|x64.Build.0 = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Debug|x86.Build.0 = Debug|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|x64.ActiveCfg = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|x64.Build.0 = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|x86.ActiveCfg = Release|Any CPU
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -65,5 +79,6 @@ Global
 		{16C4BB71-EAFF-4559-8C50-CB8A451D503D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3A853312-4229-4ACB-BD62-7A58C6FCE5CA} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{ED661C40-D114-44BC-9E8E-DD14A96ECCA6} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{A14AFE53-FD4E-4F69-92B0-8DA27B751D2D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
