@@ -63,10 +63,20 @@ public class EventosController(AppDbContext db) : ControllerBase
     {
         if (id != evento.Id) return BadRequest("O id do URL não corresponde ao do body.");
 
-        var existe = await db.Eventos.AnyAsync(e => e.Id == id);
-        if (!existe) return NotFound();
+        var existente = await db.Eventos.FindAsync(id);
+        if (existente is null) return NotFound();
 
-        db.Entry(evento).State = EntityState.Modified;
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(sub, out var userId) || existente.OrganizadorId != userId)
+            return Forbid();
+
+        existente.Nome            = evento.Nome;
+        existente.Descricao       = evento.Descricao;
+        existente.Localizacao     = evento.Localizacao;
+        existente.DataInicio      = evento.DataInicio;
+        existente.DataFim         = evento.DataFim;
+        existente.OrcamentoMaximo = evento.OrcamentoMaximo;
         await db.SaveChangesAsync();
         return NoContent();
     }

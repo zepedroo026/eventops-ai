@@ -2110,3 +2110,299 @@ a    { color: var(--accent); }
   margin-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD PROFESSIONAL
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Welcome banner ─────────────────────────────────────────── */
+.dash-welcome {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 28px 32px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 8%, var(--bg-subtle)) 0%,
+    var(--bg-subtle) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 28px;
+}
+
+.dash-welcome-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-welcome-greeting {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.dash-welcome-date {
+  font-size: 13px;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.dash-welcome-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dash-welcome-stat {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.dash-welcome-stat strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.dash-welcome-stat-sep {
+  color: var(--border);
+  font-size: 16px;
+}
+
+/* ── Metric icon ────────────────────────────────────────────── */
+.metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.metric-icon-default {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.metric-icon-accent {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ── Dashboard sections ─────────────────────────────────────── */
+.dash-section {
+  margin-bottom: 32px;
+}
+
+.dash-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dash-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: -.01em;
+}
+
+/* ── Upcoming events highlight ──────────────────────────────── */
+.dash-upcoming-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.dash-upcoming-card {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow .2s, border-color .2s, transform .2s;
+}
+
+.dash-upcoming-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  transform: translateY(-2px);
+}
+
+.dash-upcoming-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dash-upcoming-accent {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--accent);
+  border-radius: 0;
+}
+
+.dash-upcoming-body {
+  flex: 1;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dash-upcoming-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dash-upcoming-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  line-height: 1.3;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-upcoming-countdown {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  white-space: nowrap;
+}
+
+.dash-upcoming-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-upcoming-loc {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.dash-upcoming-date {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dash-upcoming-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.dash-upcoming-budget {
+  font: 700 13px var(--sans);
+  color: var(--accent);
+}
+
+/* ── Quick shortcuts ────────────────────────────────────────── */
+.dash-shortcuts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .2s, border-color .2s, background .2s;
+  text-align: left;
+}
+
+.dash-shortcut:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: var(--shadow-md);
+}
+
+.dash-shortcut-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .2s, color .2s, border-color .2s;
+}
+
+.dash-shortcut:hover .dash-shortcut-icon {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dash-shortcut-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+/* ── Creator label ──────────────────────────────────────────── */
+.event-creator {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.detalhe-creator {
+  font-size: 12px;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Responsive adjustments ─────────────────────────────────── */
+@media (max-width: 639px) {
+  .dash-welcome {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+  }
+  .dash-upcoming-grid { grid-template-columns: 1fr; }
+  .dash-shortcuts { flex-direction: column; }
+  .dash-shortcut { width: 100%; }
+}

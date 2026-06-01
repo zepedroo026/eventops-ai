@@ -49,11 +49,23 @@ function SectionHeader({ title, count, countClass, onAdd, adding, extra }) {
   );
 }
 
+/* ── helpers ── */
+function getCurrentUserId() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return parseInt(decoded.sub, 10);
+  } catch { return null; }
+}
+
 /* ═══════════════════════════════════════════════════════════════ */
 export default function EventoDetalhe() {
   const { id } = useParams();
   const eventoId = Number(id);
   const navigate = useNavigate();
+  const currentUserId = getCurrentUserId();
 
   const [evento,    setEvento]    = useState(null);
   const [loading,   setLoading]   = useState(true);
@@ -673,17 +685,22 @@ export default function EventoDetalhe() {
         <div className="detalhe-title-row">
           <h2 className="detalhe-title">{evento.nome}</h2>
           {evento.localizacao && <span className="detalhe-location">{evento.localizacao}</span>}
-          <button className="btn-edit" onClick={() => setEditOpen(true)}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Editar
-          </button>
+          {currentUserId === evento.organizadorId && (
+            <button className="btn-edit" onClick={() => setEditOpen(true)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Editar
+            </button>
+          )}
         </div>
         <div className="detalhe-meta">
           <span className="detalhe-dates">{fmtDate(evento.dataInicio)} → {fmtDate(evento.dataFim)}</span>
           <span className="detalhe-budget">{fmtCurrency(evento.orcamentoMaximo)}</span>
+          {evento.organizador?.nome && (
+            <span className="detalhe-creator">Criado por {evento.organizador.nome}</span>
+          )}
           {evento.descricao && <p className="detalhe-desc">{evento.descricao}</p>}
         </div>
 

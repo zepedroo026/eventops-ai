@@ -15,6 +15,16 @@ function getStatus(ev) {
 }
 const statusLabel = { proximo: 'Próximo', decorrer: 'A Decorrer', terminado: 'Terminado' };
 
+function getGreeting(nome) {
+  const h = new Date().getHours();
+  const period = h < 12 ? 'Bom dia' : h < 19 ? 'Boa tarde' : 'Boa noite';
+  return nome ? `${period}, ${nome.split(' ')[0]}` : period;
+}
+
+function fmtDateLong(date) {
+  return date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export default function Dashboard() {
   const [eventos,        setEventos]        = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -26,6 +36,11 @@ export default function Dashboard() {
   const [busca,          setBusca]          = useState('');
   const [filtroStatus,   setFiltroStatus]   = useState('todos');
   const navigate = useNavigate();
+
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  })();
 
   function load() {
     setLoading(true);
@@ -55,7 +70,6 @@ export default function Dashboard() {
 
   useEffect(load, []);
 
-  /* ── delete event ── */
   async function handleDeleteEvento(e, ev) {
     e.stopPropagation();
     if (!window.confirm(`Eliminar o evento "${ev.nome}"?\nEsta ação não pode ser desfeita.`)) return;
@@ -78,6 +92,11 @@ export default function Dashboard() {
   });
   const proximos = eventos.filter(ev => getStatus(ev) === 'proximo');
 
+  /* upcoming — next 3 events sorted by start date */
+  const upcoming = [...proximos]
+    .sort((a, b) => new Date(a.dataInicio) - new Date(b.dataInicio))
+    .slice(0, 3);
+
   /* client-side search + filter */
   const eventosFiltrados = eventos.filter(ev => {
     const matchBusca  = (ev.nome ?? '').toLowerCase().includes(busca.toLowerCase());
@@ -94,14 +113,27 @@ export default function Dashboard() {
 
   return (
     <div className="dash-page">
-      <div className="dash-title-row">
-        <h2>Eventos</h2>
+
+      {/* ── Welcome ── */}
+      <div className="dash-welcome">
+        <div className="dash-welcome-text">
+          <h2 className="dash-welcome-greeting">{getGreeting(user.nome)}</h2>
+          <p className="dash-welcome-date">{fmtDateLong(now)}</p>
+        </div>
         {!loading && !error && (
-          <span className="dash-count">
-            {eventosFiltrados.length !== eventos.length
-              ? `${eventosFiltrados.length} de ${eventos.length}`
-              : `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`}
-          </span>
+          <div className="dash-welcome-stats">
+            <span className="dash-welcome-stat">
+              <strong>{proximos.length}</strong> próximo{proximos.length !== 1 ? 's' : ''}
+            </span>
+            {totalStaff !== null && (
+              <span className="dash-welcome-stat-sep">·</span>
+            )}
+            {totalStaff !== null && (
+              <span className="dash-welcome-stat">
+                <strong>{totalStaff}</strong> staff
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -109,166 +141,297 @@ export default function Dashboard() {
       {!loading && !error && (
         <div className="metrics-grid metrics-grid-5">
           <div className="metric-card">
+            <div className="metric-icon metric-icon-default">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
             <span className="metric-value">{eventos.length}</span>
             <span className="metric-label">Total de Eventos</span>
           </div>
           <div className="metric-card">
+            <div className="metric-icon metric-icon-default">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/>
+              </svg>
+            </div>
             <span className="metric-value">{thisMes.length}</span>
-            <span className="metric-label">Eventos Este Mês</span>
+            <span className="metric-label">Este Mês</span>
           </div>
           <div className="metric-card">
+            <div className="metric-icon metric-icon-accent">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
             <span className="metric-value metric-accent">{proximos.length}</span>
             <span className="metric-label">Próximos</span>
           </div>
           <div className="metric-card">
+            <div className="metric-icon metric-icon-default">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </div>
             <span className="metric-value">
               {totalStaff === null
                 ? <span className="skeleton" style={{ display: 'inline-block', width: 40, height: 28, borderRadius: 4 }} />
                 : totalStaff}
             </span>
-            <span className="metric-label">Total de Staff</span>
+            <span className="metric-label">Total Staff</span>
           </div>
           <div className="metric-card">
+            <div className="metric-icon metric-icon-accent">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+            </div>
             <span className="metric-value metric-accent" style={{ fontSize: 20 }}>
               {totalDespesas === null
                 ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28, borderRadius: 4 }} />
                 : fmtCur(totalDespesas)}
             </span>
-            <span className="metric-label">Total de Despesas</span>
+            <span className="metric-label">Total Despesas</span>
           </div>
         </div>
       )}
 
       {loading && (
         <div className="metrics-grid metrics-grid-5">
-          {[1,2,3,4,5].map(i => <div key={i} className="metric-card skeleton" style={{ height: 80 }} />)}
+          {[1,2,3,4,5].map(i => <div key={i} className="metric-card skeleton" style={{ height: 96 }} />)}
         </div>
       )}
 
-      {/* ── Search + filters ── */}
-      {!loading && !error && eventos.length > 0 && (
-        <div className="dash-filters">
-          <div className="dash-search-wrap">
-            <svg className="dash-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* ── Eventos Próximos em destaque ── */}
+      {!loading && !error && upcoming.length > 0 && (
+        <div className="dash-section">
+          <div className="dash-section-header">
+            <h3 className="dash-section-title">Próximos Eventos</h3>
+            <span className="dash-count">{upcoming.length}</span>
+          </div>
+          <div className="dash-upcoming-grid">
+            {upcoming.map(ev => {
+              const nConflits = conflictCounts[ev.id] ?? 0;
+              const daysUntil = Math.ceil((new Date(ev.dataInicio) - now) / (1000 * 60 * 60 * 24));
+              return (
+                <article
+                  key={ev.id}
+                  className="dash-upcoming-card"
+                  onClick={() => navigate(`/eventos/${ev.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && navigate(`/eventos/${ev.id}`)}
+                >
+                  <div className="dash-upcoming-accent" />
+                  <div className="dash-upcoming-body">
+                    <div className="dash-upcoming-top">
+                      <h4 className="dash-upcoming-name">{ev.nome}</h4>
+                      <span className="dash-upcoming-countdown">
+                        {daysUntil === 0 ? 'Hoje' : daysUntil === 1 ? 'Amanhã' : `em ${daysUntil} dias`}
+                      </span>
+                    </div>
+                    <div className="dash-upcoming-meta">
+                      {ev.localizacao && <span className="dash-upcoming-loc">{ev.localizacao}</span>}
+                      <span className="dash-upcoming-date">{fmtDate(ev.dataInicio)} → {fmtDate(ev.dataFim)}</span>
+                    </div>
+                    <div className="dash-upcoming-footer">
+                      <span className="dash-upcoming-budget">{fmtCur(ev.orcamentoMaximo)}</span>
+                      {ev.organizador?.nome && (
+                        <span className="event-creator">por {ev.organizador.nome}</span>
+                      )}
+                      {nConflits > 0 && (
+                        <span className="event-conflict-badge" title={`${nConflits} conflito(s)`}>⚠ {nConflits}</span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Atalhos Rápidos ── */}
+      {!loading && !error && (
+        <div className="dash-section">
+          <div className="dash-section-header">
+            <h3 className="dash-section-title">Atalhos Rápidos</h3>
+          </div>
+          <div className="dash-shortcuts">
+            <button className="dash-shortcut" onClick={() => document.querySelector('.sidebar-new-btn')?.click()}>
+              <span className="dash-shortcut-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </span>
+              <span className="dash-shortcut-label">Novo Evento</span>
+            </button>
+            <button className="dash-shortcut" onClick={() => setFiltroStatus('decorrer')}>
+              <span className="dash-shortcut-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </span>
+              <span className="dash-shortcut-label">A Decorrer</span>
+            </button>
+            <button className="dash-shortcut" onClick={() => setFiltroStatus('proximo')}>
+              <span className="dash-shortcut-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </span>
+              <span className="dash-shortcut-label">Ver Próximos</span>
+            </button>
+            <button className="dash-shortcut" onClick={() => setFiltroStatus('todos')}>
+              <span className="dash-shortcut-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </span>
+              <span className="dash-shortcut-label">Todos os Eventos</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Todos os Eventos ── */}
+      <div className="dash-section">
+        <div className="dash-section-header">
+          <h3 className="dash-section-title">Todos os Eventos</h3>
+          {!loading && !error && (
+            <span className="dash-count">
+              {eventosFiltrados.length !== eventos.length
+                ? `${eventosFiltrados.length} de ${eventos.length}`
+                : `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`}
+            </span>
+          )}
+        </div>
+
+        {/* Search + filters */}
+        {!loading && !error && eventos.length > 0 && (
+          <div className="dash-filters">
+            <div className="dash-search-wrap">
+              <svg className="dash-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                className="dash-search"
+                type="search"
+                placeholder="Pesquisar evento…"
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+              />
+              {busca && (
+                <button className="dash-search-clear" onClick={() => setBusca('')} aria-label="Limpar">✕</button>
+              )}
+            </div>
+            <div className="dash-filter-btns">
+              {FILTROS.map(f => (
+                <button
+                  key={f.key}
+                  className={`filter-btn${filtroStatus === f.key ? ' active' : ''}`}
+                  onClick={() => setFiltroStatus(f.key)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div className="events-grid">
+            {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 180, borderRadius: 12 }} />)}
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="dash-state error">
+            <p>{error}</p>
+            <button className="btn-secondary" onClick={load}>Tentar novamente</button>
+          </div>
+        )}
+
+        {!loading && !error && eventos.length === 0 && (
+          <div className="dash-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'var(--border)' }}>
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <p style={{ fontWeight: 600, color: 'var(--text-h)' }}>Nenhum evento ainda</p>
+            <p style={{ fontSize: 14 }}>Cria o teu primeiro evento para começar</p>
+          </div>
+        )}
+
+        {!loading && !error && eventos.length > 0 && eventosFiltrados.length === 0 && (
+          <div className="dash-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'var(--border)' }}>
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input
-              className="dash-search"
-              type="search"
-              placeholder="Pesquisar evento…"
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-            />
-            {busca && (
-              <button className="dash-search-clear" onClick={() => setBusca('')} aria-label="Limpar">✕</button>
-            )}
+            <p style={{ fontWeight: 600, color: 'var(--text-h)' }}>Nenhum resultado</p>
+            <p style={{ fontSize: 14 }}>
+              {busca ? `Nenhum evento encontrado para "${busca}"` : 'Nenhum evento com este estado'}
+            </p>
+            <button className="btn-secondary" onClick={() => { setBusca(''); setFiltroStatus('todos'); }}>
+              Limpar filtros
+            </button>
           </div>
-          <div className="dash-filter-btns">
-            {FILTROS.map(f => (
-              <button
-                key={f.key}
-                className={`filter-btn${filtroStatus === f.key ? ' active' : ''}`}
-                onClick={() => setFiltroStatus(f.key)}
-              >
-                {f.label}
-              </button>
-            ))}
+        )}
+
+        {!loading && !error && eventosFiltrados.length > 0 && (
+          <div className="events-grid">
+            {eventosFiltrados.map(ev => {
+              const status    = getStatus(ev);
+              const nConflits = conflictCounts[ev.id] ?? 0;
+              return (
+                <article
+                  key={ev.id}
+                  className="event-card"
+                  onClick={() => navigate(`/eventos/${ev.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && navigate(`/eventos/${ev.id}`)}
+                >
+                  <div className="event-card-top">
+                    <div className="event-card-title-row">
+                      <h3 className="event-name">{ev.nome}</h3>
+                      <span className={`event-status status-${status}`}>{statusLabel[status]}</span>
+                      <button
+                        className="btn-delete"
+                        disabled={deletingEvIds.has(ev.id)}
+                        title="Eliminar evento"
+                        onClick={e => handleDeleteEvento(e, ev)}
+                      >✕</button>
+                    </div>
+                    {ev.localizacao && <span className="event-location">{ev.localizacao}</span>}
+                  </div>
+
+                  {ev.descricao && <p className="event-desc">{ev.descricao}</p>}
+
+                  <div className="event-dates">
+                    <span>{fmtDate(ev.dataInicio)}</span>
+                    <span className="event-dates-sep">→</span>
+                    <span>{fmtDate(ev.dataFim)}</span>
+                  </div>
+
+                  <div className="event-card-footer">
+                    <span className="event-budget">{fmtCur(ev.orcamentoMaximo)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {nConflits > 0 && (
+                        <span className="event-conflict-badge" title={`${nConflits} conflito(s)`}>
+                          ⚠ {nConflits}
+                        </span>
+                      )}
+                      {ev.organizador?.nome && (
+                        <span className="event-creator">por {ev.organizador.nome}</span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="events-grid" style={{ marginTop: 24 }}>
-          {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 180, borderRadius: 12 }} />)}
-        </div>
-      )}
-
-      {!loading && error && (
-        <div className="dash-state error">
-          <p>{error}</p>
-          <button className="btn-secondary" onClick={load}>Tentar novamente</button>
-        </div>
-      )}
-
-      {!loading && !error && eventos.length === 0 && (
-        <div className="dash-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'var(--border)' }}>
-            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          <p style={{ fontWeight: 600, color: 'var(--text-h)' }}>Nenhum evento ainda</p>
-          <p style={{ fontSize: 14 }}>Cria o teu primeiro evento para começar</p>
-        </div>
-      )}
-
-      {!loading && !error && eventos.length > 0 && eventosFiltrados.length === 0 && (
-        <div className="dash-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'var(--border)' }}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <p style={{ fontWeight: 600, color: 'var(--text-h)' }}>Nenhum resultado</p>
-          <p style={{ fontSize: 14 }}>
-            {busca ? `Nenhum evento encontrado para "${busca}"` : 'Nenhum evento com este estado'}
-          </p>
-          <button className="btn-secondary" onClick={() => { setBusca(''); setFiltroStatus('todos'); }}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && eventosFiltrados.length > 0 && (
-        <div className="events-grid">
-          {eventosFiltrados.map(ev => {
-            const status    = getStatus(ev);
-            const nConflits = conflictCounts[ev.id] ?? 0;
-            return (
-              <article
-                key={ev.id}
-                className="event-card"
-                onClick={() => navigate(`/eventos/${ev.id}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && navigate(`/eventos/${ev.id}`)}
-              >
-                <div className="event-card-top">
-                  <div className="event-card-title-row">
-                    <h3 className="event-name">{ev.nome}</h3>
-                    <span className={`event-status status-${status}`}>{statusLabel[status]}</span>
-                    <button
-                      className="btn-delete"
-                      disabled={deletingEvIds.has(ev.id)}
-                      title="Eliminar evento"
-                      onClick={e => handleDeleteEvento(e, ev)}
-                    >✕</button>
-                  </div>
-                  {ev.localizacao && <span className="event-location">{ev.localizacao}</span>}
-                </div>
-
-                {ev.descricao && <p className="event-desc">{ev.descricao}</p>}
-
-                <div className="event-dates">
-                  <span>{fmtDate(ev.dataInicio)}</span>
-                  <span className="event-dates-sep">→</span>
-                  <span>{fmtDate(ev.dataFim)}</span>
-                </div>
-
-                <div className="event-card-footer">
-                  <span className="event-budget">{fmtCur(ev.orcamentoMaximo)}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {nConflits > 0 && (
-                      <span className="event-conflict-badge" title={`${nConflits} conflito(s)`}>
-                        ⚠ {nConflits}
-                      </span>
-                    )}
-                    {ev.organizador?.nome && (
-                      <span className="event-organizer">{ev.organizador.nome}</span>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
