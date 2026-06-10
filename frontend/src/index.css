@@ -2406,3 +2406,166 @@ a    { color: var(--accent); }
   .dash-shortcuts { flex-direction: column; }
   .dash-shortcut { width: 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ESTADO DO EVENTO — badges
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Pendente — amarelo */
+.status-pendente {
+  background: rgba(234,179,8,.12);
+  color: #ca8a04;
+  border: 1px solid rgba(234,179,8,.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Rejeitado — vermelho */
+.status-rejeitado {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Card de evento rejeitado — ligeiramente mais escurecido */
+.event-card-rejeitado {
+  opacity: .75;
+  border-color: color-mix(in srgb, var(--danger) 25%, var(--border));
+}
+.event-card-rejeitado:hover {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN DASHBOARD — event tabs
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-event-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.admin-event-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font: 500 13px var(--sans);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+
+.admin-event-tab:hover { color: var(--text-h); }
+
+.admin-event-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.admin-event-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.admin-event-tab-count.pending {
+  background: rgba(234,179,8,.12);
+  color: #ca8a04;
+  border-color: rgba(234,179,8,.3);
+}
+
+/* ── Estado badge inside admin table ── */
+.admin-event-estado {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  border: 1px solid transparent;
+}
+
+.admin-event-estado.estado-pendente {
+  background: rgba(234,179,8,.12);
+  color: #ca8a04;
+  border-color: rgba(234,179,8,.3);
+}
+
+.admin-event-estado.estado-aprovado {
+  background: rgba(34,197,94,.1);
+  color: #22c55e;
+  border-color: rgba(34,197,94,.3);
+}
+
+.admin-event-estado.estado-rejeitado {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+/* ── Aprovar / Rejeitar buttons ── */
+.admin-btn-aprovar {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font: 600 11px var(--sans);
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid rgba(34,197,94,.3);
+  background: rgba(34,197,94,.1);
+  color: #22c55e;
+  transition: background .12s, color .12s;
+}
+.admin-btn-aprovar:hover:not(:disabled) {
+  background: #22c55e;
+  color: #fff;
+}
+.admin-btn-aprovar:disabled { opacity: .45; cursor: not-allowed; }
+
+.admin-btn-rejeitar {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font: 600 11px var(--sans);
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+  transition: background .12s, color .12s;
+}
+.admin-btn-rejeitar:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+.admin-btn-rejeitar:disabled { opacity: .45; cursor: not-allowed; }

@@ -25,6 +25,16 @@ function fmtDateLong(date) {
   return date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function getCurrentUserId() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return parseInt(decoded.sub, 10);
+  } catch { return null; }
+}
+
 export default function Dashboard() {
   const [eventos,        setEventos]        = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -41,6 +51,9 @@ export default function Dashboard() {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); }
     catch { return {}; }
   })();
+
+  const currentUserId = getCurrentUserId();
+  const isAdmin = user.perfil === 'Administrador';
 
   function load() {
     setLoading(true);
@@ -251,49 +264,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Atalhos Rápidos ── */}
-      {!loading && !error && (
-        <div className="dash-section">
-          <div className="dash-section-header">
-            <h3 className="dash-section-title">Atalhos Rápidos</h3>
-          </div>
-          <div className="dash-shortcuts">
-            <button className="dash-shortcut" onClick={() => document.querySelector('.sidebar-new-btn')?.click()}>
-              <span className="dash-shortcut-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </span>
-              <span className="dash-shortcut-label">Novo Evento</span>
-            </button>
-            <button className="dash-shortcut" onClick={() => setFiltroStatus('decorrer')}>
-              <span className="dash-shortcut-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-              </span>
-              <span className="dash-shortcut-label">A Decorrer</span>
-            </button>
-            <button className="dash-shortcut" onClick={() => setFiltroStatus('proximo')}>
-              <span className="dash-shortcut-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-              </span>
-              <span className="dash-shortcut-label">Ver Próximos</span>
-            </button>
-            <button className="dash-shortcut" onClick={() => setFiltroStatus('todos')}>
-              <span className="dash-shortcut-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
-              </span>
-              <span className="dash-shortcut-label">Todos os Eventos</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── Todos os Eventos ── */}
       <div className="dash-section">
         <div className="dash-section-header">
@@ -382,10 +352,15 @@ export default function Dashboard() {
             {eventosFiltrados.map(ev => {
               const status    = getStatus(ev);
               const nConflits = conflictCounts[ev.id] ?? 0;
+              const estadoBadge = ev.estado === 'Pendente'
+                ? <span className="event-status status-pendente">Aguarda aprovação</span>
+                : ev.estado === 'Rejeitado'
+                  ? <span className="event-status status-rejeitado">Rejeitado</span>
+                  : <span className={`event-status status-${status}`}>{statusLabel[status]}</span>;
               return (
                 <article
                   key={ev.id}
-                  className="event-card"
+                  className={`event-card${ev.estado === 'Rejeitado' ? ' event-card-rejeitado' : ''}`}
                   onClick={() => navigate(`/eventos/${ev.id}`)}
                   role="button"
                   tabIndex={0}
@@ -394,13 +369,15 @@ export default function Dashboard() {
                   <div className="event-card-top">
                     <div className="event-card-title-row">
                       <h3 className="event-name">{ev.nome}</h3>
-                      <span className={`event-status status-${status}`}>{statusLabel[status]}</span>
-                      <button
-                        className="btn-delete"
-                        disabled={deletingEvIds.has(ev.id)}
-                        title="Eliminar evento"
-                        onClick={e => handleDeleteEvento(e, ev)}
-                      >✕</button>
+                      {estadoBadge}
+                      {(isAdmin || ev.organizadorId === currentUserId) && (
+                        <button
+                          className="btn-delete"
+                          disabled={deletingEvIds.has(ev.id)}
+                          title="Eliminar evento"
+                          onClick={e => handleDeleteEvento(e, ev)}
+                        >✕</button>
+                      )}
                     </div>
                     {ev.localizacao && <span className="event-location">{ev.localizacao}</span>}
                   </div>

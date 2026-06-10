@@ -12,6 +12,7 @@ public class DespesasTests
 {
     // ── helper ───────────────────────────────────────────────────────────────
 
+    // OrganizadorId = 1 para coincidir com o userId padrão do WithUser()
     private static async Task<int> SeedEventoAsync(AppDbContext db, decimal orcamento = 1_000m)
     {
         const int eventoId = 1;
@@ -22,7 +23,7 @@ public class DespesasTests
             OrcamentoMaximo = orcamento,
             DataInicio      = DateTime.UtcNow,
             DataFim         = DateTime.UtcNow.AddDays(1),
-            OrganizadorId   = 0
+            OrganizadorId   = 1   // corresponde ao userId=1 injetado pelo WithUser()
         });
         await db.SaveChangesAsync();
         return eventoId;

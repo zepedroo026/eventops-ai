@@ -88,6 +88,28 @@ public class AdminController(AppDbContext db) : ControllerBase
         return Ok(new { bloqueado = utilizador.Bloqueado });
     }
 
+    // PUT /api/admin/eventos/{id}/aprovar
+    [HttpPut("eventos/{id:int}/aprovar")]
+    public async Task<IActionResult> AprovarEvento(int id)
+    {
+        var evento = await db.Eventos.FindAsync(id);
+        if (evento is null) return NotFound($"Evento com id {id} não existe.");
+        evento.Estado = EstadoEvento.Aprovado;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // PUT /api/admin/eventos/{id}/rejeitar
+    [HttpPut("eventos/{id:int}/rejeitar")]
+    public async Task<IActionResult> RejeitarEvento(int id)
+    {
+        var evento = await db.Eventos.FindAsync(id);
+        if (evento is null) return NotFound($"Evento com id {id} não existe.");
+        evento.Estado = EstadoEvento.Rejeitado;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // DELETE /api/admin/utilizadores/{id}
     [HttpDelete("utilizadores/{id:int}")]
     public async Task<IActionResult> DeleteUtilizador(int id)

@@ -25,8 +25,13 @@ public class AlocacoesStaffController(AppDbContext db) : ControllerBase
         if (atividade is null)
             return BadRequest($"Atividade com id {req.AtividadeId} não existe.");
 
-        if (staff.EventoId != atividade.EventoId)
-            return BadRequest("O staff e a atividade pertencem a eventos diferentes.");
+        // Verifica que o staff pertence ao pool do organizador do evento
+        var orgId = await db.Eventos.AsNoTracking()
+            .Where(e => e.Id == atividade.EventoId)
+            .Select(e => e.OrganizadorId)
+            .FirstOrDefaultAsync();
+        if (staff.CriadorId != orgId)
+            return BadRequest("O staff não pertence ao pool do organizador deste evento.");
 
         var jaExiste = await db.AlocacoesStaff
             .AnyAsync(a => a.StaffId == req.StaffId && a.AtividadeId == req.AtividadeId);

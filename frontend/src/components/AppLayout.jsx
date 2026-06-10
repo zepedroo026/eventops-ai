@@ -87,7 +87,7 @@ export default function AppLayout() {
             </NavLink>
           )}
 
-          {!isStaff && (
+          {!isStaff && !isAdmin && (
             <button className="sidebar-new-btn" onClick={() => setModalOpen(true)}>
               <span>+</span> Novo Evento
             </button>

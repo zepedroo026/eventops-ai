@@ -3,6 +3,8 @@ using EventOps.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace EventOps.API.Controllers;
 
@@ -20,6 +22,24 @@ public record ResumoDto(
 [Route("api/[controller]")]
 public class DespesasController(AppDbContext db) : ControllerBase
 {
+    private int? GetCurrentUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(sub, out var id) ? id : null;
+    }
+
+    private async Task<bool> IsEventOwner(int eventoId)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return false;
+        var orgId = await db.Eventos.AsNoTracking()
+            .Where(e => e.Id == eventoId)
+            .Select(e => (int?)e.OrganizadorId)
+            .FirstOrDefaultAsync();
+        return orgId == userId;
+    }
+
     // GET /api/despesas?eventoId=X
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Despesa>>> GetAll([FromQuery] int? eventoId)
@@ -27,7 +47,20 @@ public class DespesasController(AppDbContext db) : ControllerBase
         var query = db.Despesas.AsNoTracking().AsQueryable();
 
         if (eventoId.HasValue)
+        {
+            // Apenas o criador do evento acede ao detalhe financeiro
+            if (!await IsEventOwner(eventoId.Value))
+                return Forbid();
             query = query.Where(d => d.EventoId == eventoId.Value);
+        }
+        else if (!User.IsInRole("Administrador"))
+        {
+            // Organizadores sem filtro: apenas os seus próprios eventos
+            var userId = GetCurrentUserId();
+            if (userId is not null)
+                query = query.Where(d => d.Evento!.OrganizadorId == userId);
+        }
+        // Admin sem eventoId → totais globais (para estatísticas de administração)
 
         return Ok(await query.OrderByDescending(d => d.Data).ToListAsync());
     }
@@ -36,6 +69,9 @@ public class DespesasController(AppDbContext db) : ControllerBase
     [HttpGet("resumo")]
     public async Task<ActionResult<ResumoDto>> GetResumo([FromQuery] int eventoId)
     {
+        if (!await IsEventOwner(eventoId))
+            return Forbid();
+
         var evento = await db.Eventos
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == eventoId);
@@ -63,8 +99,9 @@ public class DespesasController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Despesa>> GetById(int id)
     {
-        var despesa = await db.Despesas.FindAsync(id);
+        var despesa = await db.Despesas.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id);
         if (despesa is null) return NotFound();
+        if (!await IsEventOwner(despesa.EventoId)) return Forbid();
         return Ok(despesa);
     }
 

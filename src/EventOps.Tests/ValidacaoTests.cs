@@ -30,7 +30,7 @@ public class ValidacaoTests
             OrganizadorId   = 0
         });
         db.Salas.Add(new Sala  { Id = salaId,  Nome = "Sala A", Capacidade = 50, EventoId = eventoId });
-        db.Staff.Add(new Staff { Id = staffId, Nome = "Ana",                     EventoId = eventoId });
+        db.Staff.Add(new Staff { Id = staffId, Nome = "Ana", CriadorId = 0 }); // matches evento.OrganizadorId = 0
 
         if (comAtividade)
         {

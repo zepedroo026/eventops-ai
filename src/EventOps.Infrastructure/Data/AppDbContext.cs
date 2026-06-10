@@ -43,9 +43,10 @@ public class AppDbContext : DbContext
             .HasForeignKey(a => a.EventoId);
 
         modelBuilder.Entity<Staff>()
-            .HasOne(s => s.Evento)
-            .WithMany(e => e.Staff)
-            .HasForeignKey(s => s.EventoId);
+            .HasOne(s => s.Criador)
+            .WithMany()
+            .HasForeignKey(s => s.CriadorId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<AlocacaoStaff>()
             .HasOne(a => a.Staff)

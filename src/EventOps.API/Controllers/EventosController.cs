@@ -41,8 +41,6 @@ public class EventosController(AppDbContext db) : ControllerBase
             .Include(e => e.Organizador)
             .Include(e => e.Salas)
             .Include(e => e.Atividades)
-            .Include(e => e.Staff)
-            .Include(e => e.Despesas)
             .Include(e => e.Tarefas)
             .FirstOrDefaultAsync(e => e.Id == id);
 
@@ -51,8 +49,10 @@ public class EventosController(AppDbContext db) : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Organizador")]
     public async Task<ActionResult<Evento>> Create(Evento evento)
     {
+        evento.Estado = EstadoEvento.Pendente; // garantia — nunca aceitar estado do cliente
         db.Eventos.Add(evento);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = evento.Id }, evento);
@@ -87,6 +87,15 @@ public class EventosController(AppDbContext db) : ControllerBase
         var evento = await db.Eventos.FindAsync(id);
         if (evento is null) return NotFound();
 
+        // Admin pode apagar qualquer evento; Organizador só os seus
+        if (!User.IsInRole("Administrador"))
+        {
+            var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                      ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(sub, out var userId) || evento.OrganizadorId != userId)
+                return Forbid();
+        }
+
         db.Eventos.Remove(evento);
         await db.SaveChangesAsync();
         return NoContent();
@@ -97,6 +106,12 @@ public class EventosController(AppDbContext db) : ControllerBase
     {
         var evento = await db.Eventos.FindAsync(id);
         if (evento is null) return NotFound();
+
+        // Apenas o criador pode editar notas
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(sub, out var userId) || evento.OrganizadorId != userId)
+            return Forbid();
 
         evento.Notas = req.Notas;
         await db.SaveChangesAsync();

@@ -26,6 +26,13 @@ public record AplicarEscalaResultDto(int Criadas, int Duplicadas);
 [Route("api/[controller]")]
 public class StaffController(AppDbContext db) : ControllerBase
 {
+    private int? GetCurrentUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(sub, out var id) ? id : null;
+    }
+
     // GET /api/staff/me — allocations for the logged-in staff user (matched by contact email)
     [HttpGet("me")]
     public async Task<ActionResult> GetMe()
@@ -40,19 +47,27 @@ public class StaffController(AppDbContext db) : ControllerBase
             .Include(s => s.Alocacoes)
                 .ThenInclude(a => a.Atividade)
                     .ThenInclude(at => at!.Sala)
-            .Include(s => s.Evento)
+            .Include(s => s.Alocacoes)
+                .ThenInclude(a => a.Atividade)
+                    .ThenInclude(at => at!.Evento)
             .ToListAsync();
 
         return Ok(staffMembers);
     }
 
-    // GET /api/staff?eventoId=X
+    // GET /api/staff — returns the caller's staff pool; Admin sees all
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Staff>>> GetAll([FromQuery] int? eventoId)
+    public async Task<ActionResult<IEnumerable<Staff>>> GetAll()
     {
         var query = db.Staff.AsNoTracking().AsQueryable();
-        if (eventoId.HasValue)
-            query = query.Where(s => s.EventoId == eventoId.Value);
+
+        if (!User.IsInRole("Administrador"))
+        {
+            var userId = GetCurrentUserId();
+            if (userId is null) return Unauthorized();
+            query = query.Where(s => s.CriadorId == userId.Value);
+        }
+
         return Ok(await query.OrderBy(s => s.Nome).ToListAsync());
     }
 
@@ -68,12 +83,14 @@ public class StaffController(AppDbContext db) : ControllerBase
         return Ok(staff);
     }
 
-    // POST /api/staff
+    // POST /api/staff — creates a staff member in the caller's pool
     [HttpPost]
     public async Task<ActionResult<Staff>> Create(Staff staff)
     {
-        if (!await db.Eventos.AnyAsync(e => e.Id == staff.EventoId))
-            return BadRequest($"Evento com id {staff.EventoId} não existe.");
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        staff.CriadorId = userId.Value;
         db.Staff.Add(staff);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = staff.Id }, staff);
@@ -89,7 +106,6 @@ public class StaffController(AppDbContext db) : ControllerBase
         existing.Nome     = staff.Nome;
         existing.Funcao   = staff.Funcao;
         existing.Contacto = staff.Contacto;
-        existing.EventoId = staff.EventoId;
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -110,8 +126,8 @@ public class StaffController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<SugestaoAlocacaoDto>>> GerarEscala(
         [FromQuery] int eventoId)
     {
-        if (!await db.Eventos.AnyAsync(e => e.Id == eventoId))
-            return NotFound($"Evento com id {eventoId} não existe.");
+        var evento = await db.Eventos.AsNoTracking().FirstOrDefaultAsync(e => e.Id == eventoId);
+        if (evento is null) return NotFound($"Evento com id {eventoId} não existe.");
 
         var atividades = await db.Atividades
             .AsNoTracking()
@@ -119,26 +135,34 @@ public class StaffController(AppDbContext db) : ControllerBase
             .OrderBy(a => a.HoraInicio)
             .ToListAsync();
 
-        var staff = await db.Staff
+        // Staff pool: todos os membros criados pelo organizador do evento
+        var staffPool = await db.Staff
             .AsNoTracking()
-            .Where(s => s.EventoId == eventoId)
+            .Where(s => s.CriadorId == evento.OrganizadorId)
             .ToListAsync();
 
-        if (atividades.Count == 0 || staff.Count == 0)
+        if (atividades.Count == 0 || staffPool.Count == 0)
             return Ok(Array.Empty<SugestaoAlocacaoDto>());
 
-        // Alocações já existentes para este evento (para não repetir)
-        var jaAlocados = await db.AlocacoesStaff
+        // Alocações já existentes NESTE evento (para não sugerir o mesmo par)
+        var jaAlocadosEvento = await db.AlocacoesStaff
             .AsNoTracking()
             .Where(a => a.Atividade!.EventoId == eventoId)
             .Include(a => a.Atividade)
             .ToListAsync();
 
-        // slots[staffId] = lista de (inicio, fim) já comprometidos (existentes + sugeridos)
-        var slots = staff.ToDictionary(s => s.Id, _ => new List<(DateTime, DateTime)>());
-        var contagem = staff.ToDictionary(s => s.Id, _ => 0);
+        // Todas as alocações do pool (para verificar conflitos de horário entre eventos)
+        var todasAlocacoes = await db.AlocacoesStaff
+            .AsNoTracking()
+            .Include(a => a.Atividade)
+            .Where(a => a.Atividade!.Evento!.OrganizadorId == evento.OrganizadorId)
+            .ToListAsync();
 
-        foreach (var al in jaAlocados.Where(a => a.Atividade is not null))
+        // slots[staffId] = intervalos já comprometidos (alocações existentes + sugestões)
+        var slots    = staffPool.ToDictionary(s => s.Id, _ => new List<(DateTime, DateTime)>());
+        var contagem = staffPool.ToDictionary(s => s.Id, _ => 0);
+
+        foreach (var al in todasAlocacoes.Where(a => a.Atividade is not null))
         {
             if (slots.TryGetValue(al.StaffId, out var lista))
             {
@@ -151,18 +175,17 @@ public class StaffController(AppDbContext db) : ControllerBase
 
         foreach (var atividade in atividades)
         {
-            var jaNestaAtividade = jaAlocados
+            var jaNestaAtividade = jaAlocadosEvento
                 .Where(a => a.AtividadeId == atividade.Id)
                 .Select(a => a.StaffId)
                 .ToHashSet();
 
-            // Sugestões já feitas para esta atividade nesta passagem
             var sugeridosNestaAtividade = sugestoes
                 .Where(s => s.AtividadeId == atividade.Id)
                 .Select(s => s.StaffId)
                 .ToHashSet();
 
-            var disponiveis = staff
+            var disponiveis = staffPool
                 .Where(s => !jaNestaAtividade.Contains(s.Id))
                 .Where(s => !sugeridosNestaAtividade.Contains(s.Id))
                 .Where(s => !slots[s.Id].Any(slot => Overlap(slot, atividade)))
@@ -172,7 +195,7 @@ public class StaffController(AppDbContext db) : ControllerBase
 
             foreach (var membro in disponiveis.Take(2))
             {
-                var score = FuncaoScore(membro, atividade);
+                var score  = FuncaoScore(membro, atividade);
                 var motivo = BuildMotivo(membro, atividade, contagem[membro.Id], score);
 
                 sugestoes.Add(new SugestaoAlocacaoDto(

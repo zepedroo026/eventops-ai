@@ -34,8 +34,8 @@ export default function StaffDashboard() {
   const tarefas = staffEntries
     .flatMap(s =>
       (s.alocacoes || []).map(aloc => ({
-        eventoNome: s.evento?.nome,
-        eventoId:   s.eventoId,
+        eventoNome: aloc.atividade?.evento?.nome,
+        eventoId:   aloc.atividade?.evento?.id,
         atividade:  aloc.atividade,
       }))
     )
@@ -71,8 +71,8 @@ export default function StaffDashboard() {
           <span className="metric-label">Tarefas Atribuídas</span>
         </div>
         <div className="metric-card">
-          <span className="metric-value">{staffEntries.length}</span>
-          <span className="metric-label">Evento{staffEntries.length !== 1 ? 's' : ''}</span>
+          <span className="metric-value">{new Set(tarefas.map(t => t.eventoId).filter(Boolean)).size}</span>
+          <span className="metric-label">Evento{new Set(tarefas.map(t => t.eventoId).filter(Boolean)).size !== 1 ? 's' : ''}</span>
         </div>
       </div>
 

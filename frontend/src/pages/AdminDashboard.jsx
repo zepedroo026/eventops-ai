@@ -28,15 +28,36 @@ function PerfilBadge({ perfil }) {
   );
 }
 
+function classifyEvento(ev) {
+  const now   = Date.now();
+  const start = new Date(ev.dataInicio).getTime();
+  const end   = new Date(ev.dataFim).getTime();
+  if (ev.estado === 'Pendente')   return 'pendentes';
+  if (ev.estado === 'Rejeitado')  return 'passados';
+  if (now < start) return 'futuros';
+  if (now > end)   return 'passados';
+  return 'decorrer';
+}
+
+const TABS = [
+  { key: 'pendentes', label: 'Pendentes' },
+  { key: 'decorrer',  label: 'A Decorrer' },
+  { key: 'futuros',   label: 'Futuros' },
+  { key: 'passados',  label: 'Passados' },
+];
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const toast    = useToast();
 
   const [utilizadores, setUtilizadores] = useState([]);
   const [stats,        setStats]        = useState(null);
+  const [eventos,      setEventos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
   const [busyIds,      setBusyIds]      = useState(new Set());
+  const [busyEvIds,    setBusyEvIds]    = useState(new Set());
+  const [activeTab,    setActiveTab]    = useState('pendentes');
 
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); }
@@ -50,8 +71,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (user.perfil !== 'Administrador') return;
-    Promise.all([api.get('/admin/utilizadores'), api.get('/admin/stats')])
-      .then(([u, s]) => { setUtilizadores(u); setStats(s); })
+    Promise.all([
+      api.get('/admin/utilizadores'),
+      api.get('/admin/stats'),
+      api.get('/eventos'),
+    ])
+      .then(([u, s, ev]) => { setUtilizadores(u); setStats(s); setEventos(ev ?? []); })
       .catch(err => {
         if (err.message.includes('401') || err.message.includes('403')) {
           localStorage.removeItem('token'); navigate('/login');
@@ -64,7 +89,7 @@ export default function AdminDashboard() {
 
   if (user.perfil !== 'Administrador') return null;
 
-  /* ── helpers ── */
+  /* ── user helpers ── */
   function setBusy(id, v) {
     setBusyIds(p => { const n = new Set(p); v ? n.add(id) : n.delete(id); return n; });
   }
@@ -99,7 +124,7 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleRemover(u) {
+  async function handleRemoverUtilizador(u) {
     if (!window.confirm(`Remover o utilizador "${u.nome}"?\nEsta ação não pode ser desfeita.`)) return;
     setBusy(u.id, true);
     try {
@@ -113,6 +138,59 @@ export default function AdminDashboard() {
     }
   }
 
+  /* ── event helpers ── */
+  function setBusyEv(id, v) {
+    setBusyEvIds(p => { const n = new Set(p); v ? n.add(id) : n.delete(id); return n; });
+  }
+
+  async function handleAprovar(ev) {
+    setBusyEv(ev.id, true);
+    try {
+      await api.put(`/admin/eventos/${ev.id}/aprovar`, {});
+      setEventos(p => p.map(x => x.id === ev.id ? { ...x, estado: 'Aprovado' } : x));
+      toast(`Evento "${ev.nome}" aprovado.`);
+    } catch (e) {
+      toast(e.message || 'Erro ao aprovar evento.', 'error');
+    } finally {
+      setBusyEv(ev.id, false);
+    }
+  }
+
+  async function handleRejeitar(ev) {
+    setBusyEv(ev.id, true);
+    try {
+      await api.put(`/admin/eventos/${ev.id}/rejeitar`, {});
+      setEventos(p => p.map(x => x.id === ev.id ? { ...x, estado: 'Rejeitado' } : x));
+      toast(`Evento "${ev.nome}" rejeitado.`);
+    } catch (e) {
+      toast(e.message || 'Erro ao rejeitar evento.', 'error');
+    } finally {
+      setBusyEv(ev.id, false);
+    }
+  }
+
+  async function handleEliminarEvento(ev) {
+    if (!window.confirm(`Eliminar o evento "${ev.nome}"?\nEsta ação não pode ser desfeita.`)) return;
+    setBusyEv(ev.id, true);
+    try {
+      await api.delete(`/eventos/${ev.id}`);
+      setEventos(p => p.filter(x => x.id !== ev.id));
+      toast(`Evento "${ev.nome}" eliminado.`);
+    } catch (e) {
+      toast(e.message || 'Erro ao eliminar evento.', 'error');
+    } finally {
+      setBusyEv(ev.id, false);
+    }
+  }
+
+  /* ── derived data ── */
+  const byPerfil  = utilizadores.reduce((acc, u) => { acc[u.perfil] = (acc[u.perfil] ?? 0) + 1; return acc; }, {});
+  const tabCounts = TABS.reduce((acc, t) => {
+    acc[t.key] = eventos.filter(ev => classifyEvento(ev) === t.key).length;
+    return acc;
+  }, {});
+  const eventosFiltrados = eventos.filter(ev => classifyEvento(ev) === activeTab);
+
   /* ── Loading ── */
   if (loading) return (
     <div className="dash-page">
@@ -124,14 +202,7 @@ export default function AdminDashboard() {
     </div>
   );
 
-  if (error) return (
-    <div className="dash-state error"><p>{error}</p></div>
-  );
-
-  const byPerfil = utilizadores.reduce((acc, u) => {
-    acc[u.perfil] = (acc[u.perfil] ?? 0) + 1;
-    return acc;
-  }, {});
+  if (error) return <div className="dash-state error"><p>{error}</p></div>;
 
   return (
     <div className="dash-page">
@@ -165,7 +236,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Utilizadores registados ── */}
+      {/* ══════════════════════════════════════════════════════════
+          UTILIZADORES
+          ══════════════════════════════════════════════════════════ */}
       <div className="admin-section">
         <div className="section-title-row" style={{ marginBottom: 16 }}>
           <h3>Utilizadores Registados</h3>
@@ -195,7 +268,6 @@ export default function AdminDashboard() {
                   const busy   = busyIds.has(u.id);
                   return (
                     <tr key={u.id} className={u.bloqueado ? 'admin-row-blocked' : ''}>
-                      {/* Utilizador */}
                       <td>
                         <div className="admin-user-cell">
                           <div className="admin-avatar" style={u.bloqueado ? { opacity: .5 } : undefined}>
@@ -205,30 +277,19 @@ export default function AdminDashboard() {
                             <span className="admin-user-nome" style={u.bloqueado ? { opacity: .6 } : undefined}>
                               {u.nome}
                             </span>
-                            {u.bloqueado && (
-                              <span className="admin-blocked-badge">Bloqueado</span>
-                            )}
+                            {u.bloqueado && <span className="admin-blocked-badge">Bloqueado</span>}
                           </div>
                           {isSelf && <span className="admin-self-badge">Eu</span>}
                         </div>
                       </td>
-
-                      {/* Email */}
                       <td><span className="admin-email">{u.email}</span></td>
-
-                      {/* Perfil */}
                       <td><PerfilBadge perfil={u.perfil} /></td>
-
-                      {/* Registo */}
                       <td><span className="admin-date">{fmtDate(u.criadoEm)}</span></td>
-
-                      {/* Ações */}
                       <td>
                         {isSelf ? (
                           <span style={{ fontSize: 12, color: 'var(--text)' }}>—</span>
                         ) : (
                           <div className="admin-actions">
-                            {/* Alterar perfil */}
                             <select
                               className="admin-perfil-select"
                               value={PERFIL_VALUES[u.perfil] ?? 2}
@@ -240,8 +301,6 @@ export default function AdminDashboard() {
                               <option value={1}>Organizador</option>
                               <option value={2}>Staff</option>
                             </select>
-
-                            {/* Bloquear / Desbloquear */}
                             <button
                               className={`admin-btn-block ${u.bloqueado ? 'unblock' : 'block'}`}
                               disabled={busy}
@@ -250,18 +309,134 @@ export default function AdminDashboard() {
                             >
                               {u.bloqueado ? 'Desbloquear' : 'Bloquear'}
                             </button>
-
-                            {/* Remover */}
                             <button
                               className="admin-btn-remove"
                               disabled={busy}
-                              onClick={() => handleRemover(u)}
+                              onClick={() => handleRemoverUtilizador(u)}
                               title="Remover utilizador"
                             >
                               Remover
                             </button>
                           </div>
                         )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          GESTÃO DE EVENTOS
+          ══════════════════════════════════════════════════════════ */}
+      <div className="admin-section">
+        <div className="section-title-row" style={{ marginBottom: 16 }}>
+          <h3>Gestão de Eventos</h3>
+          <span className="section-count">{eventos.length}</span>
+        </div>
+
+        {/* ── Tabs ── */}
+        <div className="admin-event-tabs">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              className={`admin-event-tab${activeTab === t.key ? ' active' : ''}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              {t.label}
+              {tabCounts[t.key] > 0 && (
+                <span className={`admin-event-tab-count${t.key === 'pendentes' && tabCounts.pendentes > 0 ? ' pending' : ''}`}>
+                  {tabCounts[t.key]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Events table ── */}
+        {eventosFiltrados.length === 0 ? (
+          <p className="section-empty" style={{ padding: '24px 0' }}>
+            {activeTab === 'pendentes' ? 'Nenhum evento aguarda aprovação.' :
+             activeTab === 'decorrer'  ? 'Nenhum evento a decorrer.' :
+             activeTab === 'futuros'   ? 'Nenhum evento futuro aprovado.' :
+                                         'Nenhum evento passado.'}
+          </p>
+        ) : (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Evento</th>
+                  <th>Organizador</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Datas</th>
+                  <th>Orçamento</th>
+                  <th>Estado</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventosFiltrados.map(ev => {
+                  const busy = busyEvIds.has(ev.id);
+                  return (
+                    <tr key={ev.id}>
+                      <td>
+                        <span style={{ fontWeight: 600, color: 'var(--text-h)', fontSize: 14 }}>{ev.nome}</span>
+                        {ev.localizacao && (
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--text)', marginTop: 2 }}>
+                            {ev.localizacao}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 13, color: 'var(--text-h)' }}>
+                          {ev.organizador?.nome ?? '—'}
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text)' }}>
+                        {fmtDate(ev.dataInicio)}<br />{fmtDate(ev.dataFim)}
+                      </td>
+                      <td style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>
+                        {fmtCur(ev.orcamentoMaximo)}
+                      </td>
+                      <td>
+                        <span className={`admin-event-estado estado-${(ev.estado ?? 'Pendente').toLowerCase()}`}>
+                          {ev.estado ?? 'Pendente'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="admin-actions">
+                          {activeTab === 'pendentes' && (
+                            <>
+                              <button
+                                className="admin-btn-aprovar"
+                                disabled={busy}
+                                onClick={() => handleAprovar(ev)}
+                                title="Aprovar evento"
+                              >
+                                Aprovar
+                              </button>
+                              <button
+                                className="admin-btn-rejeitar"
+                                disabled={busy}
+                                onClick={() => handleRejeitar(ev)}
+                                title="Rejeitar evento"
+                              >
+                                Rejeitar
+                              </button>
+                            </>
+                          )}
+                          <button
+                            className="admin-btn-remove"
+                            disabled={busy}
+                            onClick={() => handleEliminarEvento(ev)}
+                            title="Eliminar evento"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

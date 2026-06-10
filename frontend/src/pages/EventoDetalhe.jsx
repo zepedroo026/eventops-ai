@@ -67,6 +67,12 @@ export default function EventoDetalhe() {
   const navigate = useNavigate();
   const currentUserId = getCurrentUserId();
 
+  const userProfile = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}').perfil ?? ''; }
+    catch { return ''; }
+  })();
+  const isAdmin = userProfile === 'Administrador';
+
   const [evento,    setEvento]    = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [pageError, setPageError] = useState('');
@@ -107,14 +113,14 @@ export default function EventoDetalhe() {
     api.get(`/eventos/${eventoId}`)
       .then(ev => {
         if (!ev) { setPageError('Evento não encontrado.'); return; }
+        if (ev.estado === 'Rejeitado' && !isAdmin) {
+          setPageError('Este evento foi rejeitado pelo administrador.');
+          return;
+        }
         setEvento(ev);
         setSalas(ev.salas ?? []);
         setAtividades([...(ev.atividades ?? [])].sort(
           (a, b) => new Date(a.horaInicio) - new Date(b.horaInicio)
-        ));
-        setStaff(ev.staff ?? []);
-        setDespesas([...(ev.despesas ?? [])].sort(
-          (a, b) => new Date(b.data) - new Date(a.data)
         ));
         setTarefas([...(ev.tarefas ?? [])].sort((a, b) => a.id - b.id));
         setNotasLocal(ev.notas ?? '');
@@ -128,6 +134,13 @@ export default function EventoDetalhe() {
       })
       .finally(() => setLoading(false));
   }, [eventoId]);
+
+  /* ── load pool de staff do organizador ── */
+  function loadStaff() {
+    return api.get('/staff')
+      .then(s => setStaff(s ?? [])).catch(() => {});
+  }
+  useEffect(() => { if (evento) loadStaff(); }, [evento]);
 
   /* ── load alocacoes ── */
   function loadAlocacoes() {
@@ -238,6 +251,14 @@ export default function EventoDetalhe() {
       setTogglingTarefas(p => { const n = new Set(p); n.delete(t.id); return n; });
     }
   }
+
+  /* ── load despesas (apenas para o criador) ── */
+  function loadDespesas() {
+    api.get(`/despesas?eventoId=${eventoId}`)
+      .then(d => setDespesas([...(d ?? [])].sort((a, b) => new Date(b.data) - new Date(a.data))))
+      .catch(() => {});
+  }
+  useEffect(() => { if (evento) loadDespesas(); }, [evento]);
 
   /* ── load resumo ── */
   function loadResumo() {
@@ -351,8 +372,8 @@ export default function EventoDetalhe() {
     async function submit(e) {
       e.preventDefault(); setErr(''); setBusy(true);
       try {
-        const m = await api.post('/staff', { nome: form.nome, funcao: form.funcao || null, contacto: form.contacto || null, eventoId });
-        setStaff(p => [...p, m]); setAddingStaff(false);
+        const m = await api.post('/staff', { nome: form.nome, funcao: form.funcao || null, contacto: form.contacto || null });
+        setStaff(p => [...p, m].sort((a, b) => a.nome.localeCompare(b.nome))); setAddingStaff(false);
         toast('Membro de staff criado com sucesso.');
       } catch (ex) { setErr(ex.message || 'Erro ao criar membro de staff.'); toast(ex.message || 'Erro ao criar membro de staff.', 'error'); }
       finally { setBusy(false); }
@@ -481,12 +502,16 @@ export default function EventoDetalhe() {
 
   /* ── Timetable ── */
   function Timetable() {
-    if (staff.length === 0 || atividades.length === 0) {
+    // Só mostra staff com pelo menos uma alocação neste evento
+    const staffAlocadosIds = new Set(alocacoes.map(a => a.staffId));
+    const staffAlocados = staff.filter(s => staffAlocadosIds.has(s.id));
+
+    if (staffAlocados.length === 0 || atividades.length === 0) {
       return (
         <EmptyState
           icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>}
           title="Timetable indisponível"
-          hint="Adiciona staff e atividades para visualizar a grelha de alocações"
+          hint="Adiciona staff e aloca-os a atividades para visualizar a grelha"
         />
       );
     }
@@ -509,7 +534,7 @@ export default function EventoDetalhe() {
             </tr>
           </thead>
           <tbody>
-            {staff.map(s => (
+            {staffAlocados.map(s => (
               <tr key={s.id}>
                 <td className="timetable-staff-col">
                   <span className="timetable-staff-name">{s.nome}</span>
@@ -821,7 +846,7 @@ export default function EventoDetalhe() {
         {/* ── Staff ── */}
         <section className="detalhe-section">
           <SectionHeader
-            title="Staff"
+            title="Pool de Staff"
             count={staff.length}
             adding={addingStaff}
             onAdd={() => setAddingStaff(v => !v)}
@@ -862,6 +887,7 @@ export default function EventoDetalhe() {
                       setStaff(p => p.filter(x => x.id !== s.id));
                       loadAlocacoes();
                     })}
+                    title="Remover do pool"
                   >✕</button>
                 </div>
               ))}</div>
@@ -880,9 +906,8 @@ export default function EventoDetalhe() {
             onClose={() => setEscalaOpen(false)}
             onApplied={() => {
               setEscalaOpen(false);
-              api.get(`/staff?eventoId=${eventoId}`).then(s => setStaff(s ?? [])).catch(() => {});
-              loadConflitos();
               loadAlocacoes();
+              loadConflitos();
               toast('Escala aplicada com sucesso.');
             }}
           />

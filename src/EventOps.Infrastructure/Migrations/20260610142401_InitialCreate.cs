@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -16,13 +15,14 @@ namespace EventOps.Infrastructure.Migrations
                 name: "Utilizadores",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Nome = table.Column<string>(type: "text", nullable: false),
-                    Email = table.Column<string>(type: "text", nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: false),
-                    Perfil = table.Column<int>(type: "integer", nullable: false),
-                    CriadoEm = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nome = table.Column<string>(type: "TEXT", nullable: false),
+                    Email = table.Column<string>(type: "TEXT", nullable: false),
+                    PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
+                    Perfil = table.Column<int>(type: "INTEGER", nullable: false),
+                    Bloqueado = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CriadoEm = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -33,15 +33,17 @@ namespace EventOps.Infrastructure.Migrations
                 name: "Eventos",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Nome = table.Column<string>(type: "text", nullable: false),
-                    Descricao = table.Column<string>(type: "text", nullable: true),
-                    DataInicio = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    DataFim = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Localizacao = table.Column<string>(type: "text", nullable: true),
-                    OrcamentoMaximo = table.Column<decimal>(type: "numeric", nullable: false),
-                    OrganizadorId = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nome = table.Column<string>(type: "TEXT", nullable: false),
+                    Descricao = table.Column<string>(type: "TEXT", nullable: true),
+                    DataInicio = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    DataFim = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    Localizacao = table.Column<string>(type: "TEXT", nullable: true),
+                    OrcamentoMaximo = table.Column<decimal>(type: "TEXT", nullable: false),
+                    OrganizadorId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Notas = table.Column<string>(type: "TEXT", nullable: true),
+                    Estado = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -55,16 +57,38 @@ namespace EventOps.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Staff",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nome = table.Column<string>(type: "TEXT", nullable: false),
+                    Funcao = table.Column<string>(type: "TEXT", nullable: true),
+                    Contacto = table.Column<string>(type: "TEXT", nullable: true),
+                    CriadorId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Staff", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Staff_Utilizadores_CriadorId",
+                        column: x => x.CriadorId,
+                        principalTable: "Utilizadores",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Despesas",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Descricao = table.Column<string>(type: "text", nullable: false),
-                    Valor = table.Column<decimal>(type: "numeric", nullable: false),
-                    Categoria = table.Column<string>(type: "text", nullable: true),
-                    Data = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    EventoId = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Descricao = table.Column<string>(type: "TEXT", nullable: false),
+                    Valor = table.Column<decimal>(type: "TEXT", nullable: false),
+                    Categoria = table.Column<string>(type: "TEXT", nullable: true),
+                    Data = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    EventoId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -81,12 +105,12 @@ namespace EventOps.Infrastructure.Migrations
                 name: "Salas",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Nome = table.Column<string>(type: "text", nullable: false),
-                    Capacidade = table.Column<int>(type: "integer", nullable: false),
-                    Localizacao = table.Column<string>(type: "text", nullable: true),
-                    EventoId = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nome = table.Column<string>(type: "TEXT", nullable: false),
+                    Capacidade = table.Column<int>(type: "INTEGER", nullable: false),
+                    Localizacao = table.Column<string>(type: "TEXT", nullable: true),
+                    EventoId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -100,21 +124,20 @@ namespace EventOps.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Staff",
+                name: "Tarefas",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Nome = table.Column<string>(type: "text", nullable: false),
-                    Funcao = table.Column<string>(type: "text", nullable: true),
-                    Contacto = table.Column<string>(type: "text", nullable: true),
-                    EventoId = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Descricao = table.Column<string>(type: "TEXT", nullable: false),
+                    Concluida = table.Column<bool>(type: "INTEGER", nullable: false),
+                    EventoId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Staff", x => x.Id);
+                    table.PrimaryKey("PK_Tarefas", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Staff_Eventos_EventoId",
+                        name: "FK_Tarefas_Eventos_EventoId",
                         column: x => x.EventoId,
                         principalTable: "Eventos",
                         principalColumn: "Id",
@@ -125,14 +148,14 @@ namespace EventOps.Infrastructure.Migrations
                 name: "Atividades",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Nome = table.Column<string>(type: "text", nullable: false),
-                    Descricao = table.Column<string>(type: "text", nullable: true),
-                    HoraInicio = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    HoraFim = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    SalaId = table.Column<int>(type: "integer", nullable: false),
-                    EventoId = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Nome = table.Column<string>(type: "TEXT", nullable: false),
+                    Descricao = table.Column<string>(type: "TEXT", nullable: true),
+                    HoraInicio = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    HoraFim = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    SalaId = table.Column<int>(type: "INTEGER", nullable: false),
+                    EventoId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -155,11 +178,11 @@ namespace EventOps.Infrastructure.Migrations
                 name: "AlocacoesStaff",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    StaffId = table.Column<int>(type: "integer", nullable: false),
-                    AtividadeId = table.Column<int>(type: "integer", nullable: false),
-                    CriadoEm = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    StaffId = table.Column<int>(type: "INTEGER", nullable: false),
+                    AtividadeId = table.Column<int>(type: "INTEGER", nullable: false),
+                    CriadoEm = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -214,8 +237,13 @@ namespace EventOps.Infrastructure.Migrations
                 column: "EventoId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Staff_EventoId",
+                name: "IX_Staff_CriadorId",
                 table: "Staff",
+                column: "CriadorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tarefas_EventoId",
+                table: "Tarefas",
                 column: "EventoId");
 
             migrationBuilder.CreateIndex(
@@ -233,6 +261,9 @@ namespace EventOps.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Despesas");
+
+            migrationBuilder.DropTable(
+                name: "Tarefas");
 
             migrationBuilder.DropTable(
                 name: "Atividades");

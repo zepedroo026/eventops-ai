@@ -100,7 +100,7 @@ public class ConflitosTests
         using var db = TestHelpers.CreateDb(nameof(StaffNaDuasSalas_HorariosSobrepostos_DeveDetectarConflito));
         var (eventoId, sala1Id, sala2Id) = await SeedBaseAsync(db, comSegundaSala: true);
 
-        db.Staff.Add(new Staff { Id = 1, Nome = "João", EventoId = eventoId });
+        db.Staff.Add(new Staff { Id = 1, Nome = "João", CriadorId = 0 }); // organizer 0 owns evento 1
 
         // Duas atividades em SALAS DIFERENTES (sem conflito de sala)
         // mas com o mesmo staff alocado e horários sobrepostos
@@ -129,7 +129,7 @@ public class ConflitosTests
         using var db = TestHelpers.CreateDb(nameof(StaffEmAtividadesSequenciais_NaoDeveDetectarConflito));
         var (eventoId, sala1Id, sala2Id) = await SeedBaseAsync(db, comSegundaSala: true);
 
-        db.Staff.Add(new Staff { Id = 1, Nome = "Ana", EventoId = eventoId });
+        db.Staff.Add(new Staff { Id = 1, Nome = "Ana", CriadorId = 0 });
 
         db.Atividades.AddRange(
             new Atividade { Id = 1, Nome = "Manhã", HoraInicio = T(9),  HoraFim = T(10), SalaId = sala1Id, EventoId = eventoId },

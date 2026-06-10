@@ -39,7 +39,8 @@ public class AtividadesController(AppDbContext db) : ControllerBase
     [HttpGet("conflitos")]
     public async Task<ActionResult<IEnumerable<ConflitosDto>>> GetConflitos([FromQuery] int eventoId)
     {
-        var atividades = await db.Atividades
+        // Atividades do evento-alvo (para conflitos de sala e como âncora dos conflitos de staff)
+        var atividadesEvento = await db.Atividades
             .AsNoTracking()
             .Where(a => a.EventoId == eventoId)
             .Include(a => a.Sala)
@@ -49,65 +50,83 @@ public class AtividadesController(AppDbContext db) : ControllerBase
 
         var conflitos = new List<ConflitosDto>();
 
-        // ── 1. Conflitos de sala: mesma sala, horários sobrepostos ────────────
-        foreach (var grupo in atividades.GroupBy(a => a.SalaId))
+        // ── 1. Conflitos de sala (dentro do evento) ───────────────────────────
+        foreach (var grupo in atividadesEvento.GroupBy(a => a.SalaId))
         {
             var lista = grupo.ToList();
             for (int i = 0; i < lista.Count; i++)
-            {
                 for (int j = i + 1; j < lista.Count; j++)
                 {
-                    var a = lista[i];
-                    var b = lista[j];
-
+                    var a = lista[i]; var b = lista[j];
                     if (a.HoraInicio < b.HoraFim && b.HoraInicio < a.HoraFim)
-                    {
                         conflitos.Add(new ConflitosDto(
                             Tipo: "SalaConflito",
                             Descricao: $"Sala '{a.Sala?.Nome ?? a.SalaId.ToString()}': " +
                                        $"'{a.Nome}' ({a.HoraInicio:HH:mm}–{a.HoraFim:HH:mm}) e " +
                                        $"'{b.Nome}' ({b.HoraInicio:HH:mm}–{b.HoraFim:HH:mm}) têm horários sobrepostos.",
-                            AtividadeAId: a.Id,
-                            AtividadeANome: a.Nome,
-                            AtividadeBId: b.Id,
-                            AtividadeBNome: b.Nome
-                        ));
-                    }
+                            AtividadeAId: a.Id, AtividadeANome: a.Nome,
+                            AtividadeBId: b.Id, AtividadeBNome: b.Nome));
                 }
-            }
         }
 
-        // ── 2. Conflitos de staff: mesmo membro em atividades simultâneas ────
-        var alocacoesPorStaff = atividades
+        // ── 2. Conflitos de staff (entre todos os eventos do organizador) ─────
+        var orgId = await db.Eventos.AsNoTracking()
+            .Where(e => e.Id == eventoId)
+            .Select(e => e.OrganizadorId)
+            .FirstOrDefaultAsync();
+
+        var orgEventIds = await db.Eventos.AsNoTracking()
+            .Where(e => e.OrganizadorId == orgId)
+            .Select(e => e.Id)
+            .ToListAsync();
+
+        // Todas as atividades do organizador com as respetivas alocações
+        var todasAtividades = await db.Atividades
+            .AsNoTracking()
+            .Where(a => orgEventIds.Contains(a.EventoId))
+            .Include(a => a.Alocacoes)
+                .ThenInclude(al => al.Staff)
+            .ToListAsync();
+
+        // Staff IDs presentes no evento-alvo
+        var staffNoEvento = atividadesEvento
+            .SelectMany(a => a.Alocacoes.Select(al => al.StaffId))
+            .ToHashSet();
+
+        var alocacoesPorStaff = todasAtividades
             .SelectMany(a => a.Alocacoes.Select(al => (Alocacao: al, Atividade: a)))
             .GroupBy(x => x.Alocacao.StaffId);
 
         foreach (var grupo in alocacoesPorStaff)
         {
+            // Só interessa se o membro estiver alocado a este evento
+            if (!staffNoEvento.Contains(grupo.Key)) continue;
+
             var lista = grupo.ToList();
             for (int i = 0; i < lista.Count; i++)
-            {
                 for (int j = i + 1; j < lista.Count; j++)
                 {
                     var a = lista[i].Atividade;
                     var b = lista[j].Atividade;
 
-                    if (a.HoraInicio < b.HoraFim && b.HoraInicio < a.HoraFim)
-                    {
-                        var staffNome = lista[i].Alocacao.Staff?.Nome ?? $"Staff #{grupo.Key}";
-                        conflitos.Add(new ConflitosDto(
-                            Tipo: "StaffConflito",
-                            Descricao: $"'{staffNome}' está alocado simultaneamente a " +
-                                       $"'{a.Nome}' ({a.HoraInicio:HH:mm}–{a.HoraFim:HH:mm}) e " +
-                                       $"'{b.Nome}' ({b.HoraInicio:HH:mm}–{b.HoraFim:HH:mm}).",
-                            AtividadeAId: a.Id,
-                            AtividadeANome: a.Nome,
-                            AtividadeBId: b.Id,
-                            AtividadeBNome: b.Nome
-                        ));
-                    }
+                    if (a.HoraInicio >= b.HoraFim || b.HoraInicio >= a.HoraFim) continue;
+
+                    // Pelo menos uma das atividades deve pertencer ao evento-alvo
+                    if (a.EventoId != eventoId && b.EventoId != eventoId) continue;
+
+                    var staffNome  = lista[i].Alocacao.Staff?.Nome ?? $"Staff #{grupo.Key}";
+                    var crossEvent = a.EventoId != b.EventoId;
+                    var sufixoA    = crossEvent && a.EventoId != eventoId ? $" (outro evento)" : "";
+                    var sufixoB    = crossEvent && b.EventoId != eventoId ? $" (outro evento)" : "";
+
+                    conflitos.Add(new ConflitosDto(
+                        Tipo: "StaffConflito",
+                        Descricao: $"'{staffNome}' está alocado simultaneamente a " +
+                                   $"'{a.Nome}'{sufixoA} ({a.HoraInicio:HH:mm}–{a.HoraFim:HH:mm}) e " +
+                                   $"'{b.Nome}'{sufixoB} ({b.HoraInicio:HH:mm}–{b.HoraFim:HH:mm}).",
+                        AtividadeAId: a.Id, AtividadeANome: a.Nome,
+                        AtividadeBId: b.Id, AtividadeBNome: b.Nome));
                 }
-            }
         }
 
         return Ok(conflitos);
