@@ -10,6 +10,8 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
+# Render injeta PORT em runtime; o Program.cs lê-a e define UseUrls.
+# Fallback para 10000 caso o contentor seja corrido localmente sem PORT.
 ENV ASPNETCORE_URLS=http://+:10000
 EXPOSE 10000
 
