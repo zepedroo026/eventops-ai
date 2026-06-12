@@ -14,13 +14,15 @@ public class TokenService(IConfiguration config)
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var expira = DateTime.UtcNow.AddMinutes(double.Parse(config["Jwt:ExpiresInMinutes"]!));
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Perfil.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+        if (user.FornecedorId.HasValue)
+            claims.Add(new Claim("fornecedorId", user.FornecedorId.Value.ToString()));
 
         var token = new JwtSecurityToken(
             issuer: config["Jwt:Issuer"],

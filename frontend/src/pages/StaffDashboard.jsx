@@ -16,8 +16,8 @@ export default function StaffDashboard() {
     catch { return {}; }
   })();
 
-  useEffect(() => {
-    api.get('/staff/me')
+  function fetchTarefas() {
+    return api.get('/staff/me')
       .then(setStaffEntries)
       .catch(err => {
         if (err.message.includes('401') || err.message.includes('403')) {
@@ -28,6 +28,12 @@ export default function StaffDashboard() {
         }
       })
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchTarefas();
+    const interval = setInterval(fetchTarefas, 15_000);
+    return () => clearInterval(interval);
   }, []);
 
   /* flatten and sort all allocations chronologically */

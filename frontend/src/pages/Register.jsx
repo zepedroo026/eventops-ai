@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import AuthHero from '../components/AuthHero';
 
-const PERFIS = ['Organizador', 'Staff', 'Administrador'];
+// Administrador e Fornecedor são criados internamente — não disponíveis no registo público
+const PERFIS = ['Organizador', 'Staff'];
 
 export default function Register() {
   const [form, setForm] = useState({ nome: '', email: '', password: '', confirmar: '', perfil: 'Organizador' });

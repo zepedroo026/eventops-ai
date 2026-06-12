@@ -1,8 +1,10 @@
+using EventOps.API.Services;
 using EventOps.Core.Models;
 using EventOps.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace EventOps.API.Controllers;
 
@@ -18,7 +20,7 @@ public record ConflitosDto(
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class AtividadesController(AppDbContext db) : ControllerBase
+public class AtividadesController(AppDbContext db, IAnaliseIAService analiseIA) : ControllerBase
 {
     // GET /api/atividades?eventoId=X
     [HttpGet]
@@ -202,4 +204,122 @@ public class AtividadesController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    // GET /api/atividades/validar-cronograma?eventoId=X
+    [HttpGet("validar-cronograma")]
+    public async Task<ActionResult<ValidacaoCronogramaDto>> ValidarCronograma([FromQuery] int eventoId)
+    {
+        // Reutiliza a lógica de conflitos existente
+        var conflitosResult = await GetConflitos(eventoId);
+        var conflitos = conflitosResult.Result is OkObjectResult ok
+            ? (ok.Value as IEnumerable<ConflitosDto>)?.ToList() ?? []
+            : [];
+
+        var atividades = await db.Atividades.AsNoTracking()
+            .Where(a => a.EventoId == eventoId)
+            .Include(a => a.Alocacoes)
+            .OrderBy(a => a.HoraInicio)
+            .ToListAsync();
+
+        var conflitosStaff = conflitos.Count(c => c.Tipo == "StaffConflito");
+        var conflitosSala  = conflitos.Count(c => c.Tipo == "SalaConflito");
+        var semStaff       = atividades.Count(a => !a.Alocacoes.Any());
+
+        var riscos = new List<string>();
+        if (conflitosSala  > 0) riscos.Add($"{conflitosSala} conflito(s) de sala — mesma sala usada em horários sobrepostos.");
+        if (conflitosStaff > 0) riscos.Add($"{conflitosStaff} conflito(s) de staff — membro(s) alocados a atividades simultâneas.");
+        if (semStaff       > 0) riscos.Add($"{semStaff} atividade(s) sem staff alocado.");
+        if (!atividades.Any()) riscos.Add("Nenhuma atividade registada — cronograma vazio.");
+
+        var nivel = riscos.Count == 0 ? "OK"
+            : (conflitosSala + conflitosStaff) > 0 ? "Critico"
+            : "Aviso";
+
+        var resumo = nivel == "OK"
+            ? "Cronograma sem conflitos detetados. Pronto para execução."
+            : $"Detetados {conflitos.Count} conflito(s): {string.Join(" ", riscos)}";
+
+        return Ok(new ValidacaoCronogramaDto(nivel, resumo, riscos, conflitos));
+    }
+
+    // POST /api/atividades/analisar-cronograma?eventoId=X
+    [HttpPost("analisar-cronograma")]
+    [Authorize(Roles = "Organizador,Administrador")]
+    public async Task<ActionResult<AnaliseCronogramaDto>> AnalisarCronograma(
+        [FromQuery] int eventoId, CancellationToken ct)
+    {
+        // 1. Validação determinística existente
+        var validacaoResult = await ValidarCronograma(eventoId);
+        var validacao = validacaoResult.Result is OkObjectResult vok
+            ? (ValidacaoCronogramaDto?)vok.Value
+            : null;
+        if (validacao is null) return NotFound();
+
+        // 2. Carrega contexto completo para o LLM
+        var evento = await db.Eventos.AsNoTracking().FirstOrDefaultAsync(e => e.Id == eventoId, ct);
+        var atividades = await db.Atividades.AsNoTracking()
+            .Where(a => a.EventoId == eventoId)
+            .Include(a => a.Sala)
+            .Include(a => a.Alocacoes).ThenInclude(al => al.Staff)
+            .OrderBy(a => a.HoraInicio)
+            .ToListAsync(ct);
+        var salas = await db.Salas.AsNoTracking()
+            .Where(s => s.EventoId == eventoId)
+            .ToListAsync(ct);
+
+        // 3. Constrói o prompt com todo o contexto
+        var sb = new StringBuilder();
+        sb.AppendLine($"EVENTO: {evento?.Nome ?? "N/A"}");
+        sb.AppendLine($"DATA: {evento?.DataInicio:dd/MM/yyyy HH:mm} → {evento?.DataFim:dd/MM/yyyy HH:mm}");
+        sb.AppendLine();
+
+        sb.AppendLine("SALAS E OCUPAÇÕES:");
+        foreach (var sala in salas)
+        {
+            var ocups = atividades
+                .Where(a => a.SalaId == sala.Id)
+                .OrderBy(a => a.HoraInicio)
+                .Select(a => $"{a.HoraInicio:HH:mm}-{a.HoraFim:HH:mm} ({a.Nome})");
+            sb.AppendLine($"  {sala.Nome} (cap.{sala.Capacidade}): {(ocups.Any() ? string.Join(", ", ocups) : "livre")}");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"CRONOGRAMA ({atividades.Count} atividades):");
+        foreach (var a in atividades)
+        {
+            var staffNomes = a.Alocacoes.Any()
+                ? string.Join(", ", a.Alocacoes.Select(al => al.Staff?.Nome ?? "?"))
+                : "sem staff";
+            sb.AppendLine($"  {a.HoraInicio:dd/MM HH:mm}-{a.HoraFim:HH:mm} | {a.Nome} | Sala: {a.Sala?.Nome ?? "?"} | Staff: {staffNomes}");
+        }
+        sb.AppendLine();
+
+        var conflitos = validacao.Conflitos.ToList();
+        sb.AppendLine($"CONFLITOS DETETADOS ({conflitos.Count}):");
+        for (int i = 0; i < conflitos.Count; i++)
+            sb.AppendLine($"  [{i}] {conflitos[i].Tipo}: {conflitos[i].Descricao}");
+        sb.AppendLine();
+
+        sb.AppendLine("RISCOS AUTOMÁTICOS:");
+        foreach (var r in validacao.Riscos)
+            sb.AppendLine($"  - {r}");
+        sb.AppendLine();
+        sb.AppendLine("Analisa o cronograma e fornece: (a) resumo executivo, (b) sugestão para cada conflito usando as salas livres nos horários indicados, (c) riscos operacionais não óbvios.");
+
+        // 4. Chama o LLM com fallback gracioso
+        var resultado = await analiseIA.AnalisarCronogramaAsync(sb.ToString(), ct);
+
+        return Ok(new AnaliseCronogramaDto(validacao, resultado, IaDisponivel: resultado is not null));
+    }
 }
+
+public record ValidacaoCronogramaDto(
+    string Nivel,      // "OK" | "Aviso" | "Critico"
+    string Resumo,
+    IEnumerable<string> Riscos,
+    IEnumerable<ConflitosDto> Conflitos);
+
+public record AnaliseCronogramaDto(
+    ValidacaoCronogramaDto Validacao,
+    AnaliseIAResultado?    AnaliseIA,
+    bool                   IaDisponivel);

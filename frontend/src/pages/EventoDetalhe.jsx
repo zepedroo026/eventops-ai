@@ -1,9 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import EditEventoModal from '../components/EditEventoModal';
 import EscalaModal from '../components/EscalaModal';
 import { useToast } from '../components/Toast';
+
+/* ── tab error boundary — isola cada tab para que um crash não apague a página ── */
+class TabErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) return (
+      <div style={{ padding: '24px 0', color: 'var(--danger)', fontSize: 14 }}>
+        ⚠ Erro nesta secção: {this.state.err.message}
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 /* ── helpers ── */
 const fmtDate     = s => new Date(s).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -100,11 +114,28 @@ export default function EventoDetalhe() {
   const [addingDespesa,   setAddingDespesa]   = useState(false);
   const [addingTarefa,    setAddingTarefa]    = useState(false);
   const [escalaOpen,      setEscalaOpen]      = useState(false);
+  const [activeTab,       setActiveTab]       = useState('programa');
+
+  // CRM state
+  const [oradores,        setOradores]        = useState([]);
+  const [sponsors,        setSponsors]        = useState([]);
+  const [fornecedores,    setFornecedores]    = useState([]);
+  const [orcamentoResumo, setOrcamentoResumo] = useState(null);
+  const [orcLoading,      setOrcLoading]      = useState(false);
+
+  const [addingOrador,    setAddingOrador]    = useState(false);
+  const [addingSponsor,   setAddingSponsor]   = useState(false);
+  const [addingFornecedor, setAddingFornecedor] = useState(false);
   const [editOpen,        setEditOpen]        = useState(false);
   const [deletingIds,     setDeletingIds]     = useState(new Set());
   const [togglingTarefas, setTogglingTarefas] = useState(new Set());
   const notasDebounce = useRef(null);
   const [alocacaoModalStaff, setAlocacaoModalStaff] = useState(null);
+
+  const [analiseIA,        setAnaliseIA]        = useState(null);
+  const [analiseIALoading, setAnaliseIALoading] = useState(false);
+
+  const canAnalisarIA = isAdmin || userProfile === 'Organizador';
 
   const toast = useToast();
 
@@ -158,6 +189,16 @@ export default function EventoDetalhe() {
       .finally(() => setConflitosLoading(false));
   }
   useEffect(() => { if (evento) loadConflitos(); }, [evento]);
+
+  /* ── análise IA ── */
+  function analisarComIA() {
+    setAnaliseIALoading(true);
+    setAnaliseIA(null);
+    api.post(`/atividades/analisar-cronograma?eventoId=${eventoId}`)
+      .then(res => setAnaliseIA(res))
+      .catch(() => toast('Não foi possível obter a análise da IA.', 'error'))
+      .finally(() => setAnaliseIALoading(false));
+  }
 
   /* ── delete helper ── */
   async function confirmDelete(resource, id, label, onSuccess) {
@@ -268,6 +309,19 @@ export default function EventoDetalhe() {
       .finally(() => setResumoLoading(false));
   }
   useEffect(() => { if (evento) loadResumo(); }, [evento]);
+
+  /* ── load CRM data ── */
+  function loadOradores()    { api.get(`/oradores?eventoId=${eventoId}`).then(d => setOradores(d ?? [])).catch(() => {}); }
+  function loadSponsors()    { api.get(`/sponsors?eventoId=${eventoId}`).then(d => setSponsors(d ?? [])).catch(() => {}); }
+  function loadFornecedores(){ api.get(`/fornecedores?eventoId=${eventoId}`).then(d => setFornecedores(d ?? [])).catch(() => {}); }
+  function loadOrcamento()   {
+    setOrcLoading(true);
+    api.get(`/eventos/${eventoId}/orcamento-resumo`).then(setOrcamentoResumo).catch(() => {}).finally(() => setOrcLoading(false));
+  }
+  useEffect(() => {
+    if (!evento) return;
+    loadOradores(); loadSponsors(); loadFornecedores(); loadOrcamento();
+  }, [evento]);
 
   /* ══════════════════════════════════════════════════════════ */
   /*  FORMS                                                     */
@@ -757,7 +811,26 @@ export default function EventoDetalhe() {
         </div>
       </div>
 
-      <div className="detalhe-sections">
+      {/* ── Tab bar ── */}
+      <div className="detalhe-tabs">
+        {[
+          { key: 'programa',    label: 'Programa' },
+          { key: 'crm',         label: 'Oradores & Sponsors' },
+          { key: 'orcamento',   label: 'Orçamento' },
+          { key: 'fornecedores',label: 'Fornecedores' },
+        ].map(t => (
+          <button
+            key={t.key}
+            className={`detalhe-tab${activeTab === t.key ? ' active' : ''}`}
+            onClick={() => setActiveTab(t.key)}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          TAB: PROGRAMA
+          ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'programa' && <div className="detalhe-sections">
 
         {/* ── Salas ── */}
         <section className="detalhe-section">
@@ -1103,6 +1176,19 @@ export default function EventoDetalhe() {
               <span className={`section-count${conflitos.length > 0 ? ' danger' : ''}`}>{conflitos.length}</span>
             )}
             <button type="button" className="btn-add" onClick={loadConflitos}>↻ Verificar</button>
+          {canAnalisarIA && atividades.length > 0 && (
+            <button
+              type="button"
+              className="btn-ia"
+              onClick={analisarComIA}
+              disabled={analiseIALoading}
+              title="Analisar cronograma com IA (Claude)"
+            >
+              {analiseIALoading
+                ? <><span className="spinner spinner-sm" />A analisar…</>
+                : <>✦ Analisar com IA</>}
+            </button>
+          )}
           </div>
           {conflitosLoading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0' }}>
@@ -1129,9 +1215,599 @@ export default function EventoDetalhe() {
               ))}
             </div>
           )}
+
+          {/* ── Painel de análise IA ── */}
+          {analiseIA && (
+            <div className={`ia-painel${!analiseIA.iaDisponivel ? ' ia-painel--fallback' : ''}`}>
+              <div className="ia-painel-header">
+                <span className="ia-badge">✦ Powered by Claude</span>
+                {!analiseIA.iaDisponivel && (
+                  <span className="ia-badge ia-badge--warn">IA indisponível — análise automática</span>
+                )}
+              </div>
+              {analiseIA.iaDisponivel && analiseIA.analiseIA && (
+                <>
+                  <p className="ia-resumo">{analiseIA.analiseIA.resumo}</p>
+
+                  {analiseIA.analiseIA.sugestoes?.length > 0 && (
+                    <div className="ia-bloco">
+                      <h4 className="ia-bloco-titulo">Sugestões por conflito</h4>
+                      <ul className="ia-lista">
+                        {analiseIA.analiseIA.sugestoes.map((s, i) => (
+                          <li key={i} className="ia-lista-item">
+                            <span className="ia-conflito-idx">Conflito #{s.conflitoIndex}</span>
+                            {s.sugestao}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analiseIA.analiseIA.riscos?.length > 0 && (
+                    <div className="ia-bloco">
+                      <h4 className="ia-bloco-titulo">Riscos operacionais</h4>
+                      <ul className="ia-lista">
+                        {analiseIA.analiseIA.riscos.map((r, i) => (
+                          <li key={i} className="ia-lista-item ia-lista-item--risco">{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+              {!analiseIA.iaDisponivel && (
+                <p className="ia-resumo">{analiseIA.validacao?.resumo}</p>
+              )}
+            </div>
+          )}
         </section>
 
+      </div>} {/* end Programa tab */}
+
+      {/* ══════════════════════════════════════════════════════════
+          TAB: ORADORES & SPONSORS
+          ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'crm' && <TabErrorBoundary><CrmTab
+        eventoId={eventoId}
+        oradores={oradores}    setOradores={setOradores}    loadOradores={loadOradores}
+        sponsors={sponsors}    setSponsors={setSponsors}    loadSponsors={loadSponsors}
+        addingOrador={addingOrador}   setAddingOrador={setAddingOrador}
+        addingSponsor={addingSponsor} setAddingSponsor={setAddingSponsor}
+        toast={toast}
+      /></TabErrorBoundary>}
+
+      {/* ══════════════════════════════════════════════════════════
+          TAB: ORÇAMENTO
+          ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'orcamento' && <TabErrorBoundary><OrcamentoTab
+        eventoId={eventoId}
+        resumo={orcamentoResumo}
+        loading={orcLoading}
+        orcamentoMaximo={evento.orcamentoMaximo}
+        onRefresh={loadOrcamento}
+        toast={toast}
+      /></TabErrorBoundary>}
+
+      {/* ══════════════════════════════════════════════════════════
+          TAB: FORNECEDORES
+          ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'fornecedores' && <TabErrorBoundary><FornecedoresTab
+        eventoId={eventoId}
+        fornecedores={fornecedores} setFornecedores={setFornecedores} loadFornecedores={loadFornecedores}
+        addingFornecedor={addingFornecedor} setAddingFornecedor={setAddingFornecedor}
+        toast={toast}
+      /></TabErrorBoundary>}
+
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CRM TAB — Oradores & Sponsors
+   ════════════════════════════════════════════════════════════════ */
+const ESTADO_LABEL = { Proposto: 'Proposto', Contratado: 'Contratado', Confirmado: 'Confirmado', Cancelado: 'Cancelado' };
+const NIVEL_LABEL  = { Ouro: '🥇 Ouro', Prata: '🥈 Prata', Bronze: '🥉 Bronze' };
+const fmtCur       = v => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+
+function CrmTab({ eventoId, oradores, setOradores, loadOradores, sponsors, setSponsors, loadSponsors,
+                  addingOrador, setAddingOrador, addingSponsor, setAddingSponsor, toast }) {
+  const [newOrador,  setNewOrador]  = useState({ nome:'', email:'', telefone:'', bio:'', cache:0, estadoContrato:'Proposto', notasContrato:'' });
+  const [newSponsor, setNewSponsor] = useState({ nome:'', empresa:'', email:'', nivel:'Bronze', valorPatrocinio:0, estadoContrato:'Proposto' });
+  const [busyO, setBusyO] = useState(new Set());
+  const [busyS, setBusyS] = useState(new Set());
+
+  async function submitOrador(e) {
+    e.preventDefault();
+    try {
+      const o = await api.post('/oradores', { ...newOrador, eventoId, cache: Number(newOrador.cache) });
+      setOradores(p => [...p, o]);
+      setAddingOrador(false);
+      setNewOrador({ nome:'', email:'', telefone:'', bio:'', cache:0, estadoContrato:'Proposto', notasContrato:'' });
+      toast('Orador adicionado.');
+    } catch(ex) { toast(ex.message || 'Erro ao criar orador.', 'error'); }
+  }
+
+  async function deleteOrador(id, nome) {
+    if (!window.confirm(`Remover "${nome}"?`)) return;
+    setBusyO(p => new Set([...p, id]));
+    try {
+      await api.delete(`/oradores/${id}`);
+      setOradores(p => p.filter(o => o.id !== id));
+      toast(`Orador "${nome}" removido.`);
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+    finally { setBusyO(p => { const n=new Set(p); n.delete(id); return n; }); }
+  }
+
+  async function toggleRequisito(req) {
+    const novo = req.estado === 'Pendente' ? 'Tratado' : 'Pendente';
+    try {
+      await api.put(`/oradores/requisitos/${req.id}`, { ...req, estado: novo });
+      loadOradores();
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+  }
+
+  async function submitSponsor(e) {
+    e.preventDefault();
+    try {
+      const s = await api.post('/sponsors', { ...newSponsor, eventoId, valorPatrocinio: Number(newSponsor.valorPatrocinio) });
+      setSponsors(p => [...p, s]);
+      setAddingSponsor(false);
+      setNewSponsor({ nome:'', empresa:'', email:'', nivel:'Bronze', valorPatrocinio:0, estadoContrato:'Proposto' });
+      toast('Sponsor adicionado.');
+    } catch(ex) { toast(ex.message||'Erro ao criar sponsor.','error'); }
+  }
+
+  async function deleteSponsor(id, nome) {
+    if (!window.confirm(`Remover "${nome}"?`)) return;
+    setBusyS(p => new Set([...p, id]));
+    try {
+      await api.delete(`/sponsors/${id}`);
+      setSponsors(p => p.filter(s => s.id !== id));
+      toast(`Sponsor "${nome}" removido.`);
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+    finally { setBusyS(p => { const n=new Set(p); n.delete(id); return n; }); }
+  }
+
+  const setO = f => e => setNewOrador(p => ({ ...p, [f]: e.target.value }));
+  const setS = f => e => setNewSponsor(p => ({ ...p, [f]: e.target.value }));
+
+  return (
+    <div className="detalhe-sections">
+      {/* Oradores */}
+      <section className="detalhe-section">
+        <div className="section-title-row">
+          <h3>Oradores</h3>
+          <span className="section-count">{oradores.length}</span>
+          <button className={`btn-add${addingOrador?' active':''}`} onClick={() => setAddingOrador(v=>!v)}>
+            {addingOrador ? '✕' : '+ Adicionar'}
+          </button>
+        </div>
+
+        {addingOrador && (
+          <form className="inline-form" onSubmit={submitOrador} noValidate>
+            <div className="inline-form-grid">
+              <div className="field"><label>Nome *</label><input value={newOrador.nome} onChange={setO('nome')} required /></div>
+              <div className="field"><label>Email</label><input type="email" value={newOrador.email} onChange={setO('email')} /></div>
+              <div className="field"><label>Telefone</label><input value={newOrador.telefone} onChange={setO('telefone')} /></div>
+              <div className="field"><label>Cachê (€)</label><input type="number" min="0" step="0.01" value={newOrador.cache} onChange={setO('cache')} /></div>
+              <div className="field" style={{gridColumn:'1/-1'}}><label>Bio</label><textarea className="field-textarea" rows={2} value={newOrador.bio} onChange={setO('bio')} /></div>
+              <div className="field"><label>Estado do Contrato</label>
+                <select className="field-select" value={newOrador.estadoContrato} onChange={setO('estadoContrato')}>
+                  {Object.keys(ESTADO_LABEL).map(k=><option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{gridColumn:'1/-1'}}><label>Notas de Contrato</label><textarea className="field-textarea" rows={2} value={newOrador.notasContrato} onChange={setO('notasContrato')} /></div>
+            </div>
+            <div className="inline-form-actions">
+              <button type="button" className="btn-secondary" onClick={() => setAddingOrador(false)}>Cancelar</button>
+              <button type="submit" className="btn-primary-sm">Guardar</button>
+            </div>
+          </form>
+        )}
+
+        {oradores.length === 0 && !addingOrador
+          ? <p className="section-empty">Nenhum orador registado.</p>
+          : oradores.map(o => (
+            <div key={o.id} className="crm-card">
+              <div className="crm-card-header">
+                <div className="crm-card-name">{o.nome}</div>
+                <span className={`crm-estado estado-${o.estadoContrato?.toLowerCase()}`}>{ESTADO_LABEL[o.estadoContrato]}</span>
+                <span className="crm-cache">{fmtCur(o.cache)}</span>
+                <button className="btn-delete" disabled={busyO.has(o.id)} onClick={() => deleteOrador(o.id, o.nome)}>✕</button>
+              </div>
+              {(o.email||o.telefone) && (
+                <div className="crm-card-meta">
+                  {o.email && <span>✉ {o.email}</span>}
+                  {o.telefone && <span>📞 {o.telefone}</span>}
+                </div>
+              )}
+              {/* Requisitos */}
+              {o.requisitos && o.requisitos.length > 0 && (
+                <div className="crm-requisitos">
+                  {o.requisitos.map(r => (
+                    <label key={r.id} className={`crm-req${r.estado==='Tratado'?' done':''}`}>
+                      <input type="checkbox" checked={r.estado==='Tratado'} onChange={() => toggleRequisito(r)} />
+                      <span>{r.tipo}: {r.descricao}</span>
+                      {r.custo > 0 && <span className="crm-req-custo">{fmtCur(r.custo)}</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </section>
+
+      {/* Sponsors */}
+      <section className="detalhe-section">
+        <div className="section-title-row">
+          <h3>Sponsors</h3>
+          <span className="section-count">{sponsors.length}</span>
+          <span className="crm-total-pat">
+            Total: {fmtCur(sponsors.reduce((a,s)=>a+(s.valorPatrocinio??0),0))}
+          </span>
+          <button className={`btn-add${addingSponsor?' active':''}`} onClick={() => setAddingSponsor(v=>!v)}>
+            {addingSponsor ? '✕' : '+ Adicionar'}
+          </button>
+        </div>
+
+        {addingSponsor && (
+          <form className="inline-form" onSubmit={submitSponsor} noValidate>
+            <div className="inline-form-grid">
+              <div className="field"><label>Nome *</label><input value={newSponsor.nome} onChange={setS('nome')} required /></div>
+              <div className="field"><label>Empresa</label><input value={newSponsor.empresa} onChange={setS('empresa')} /></div>
+              <div className="field"><label>Email</label><input type="email" value={newSponsor.email} onChange={setS('email')} /></div>
+              <div className="field"><label>Valor de Patrocínio (€)</label><input type="number" min="0" step="0.01" value={newSponsor.valorPatrocinio} onChange={setS('valorPatrocinio')} /></div>
+              <div className="field"><label>Nível</label>
+                <select className="field-select" value={newSponsor.nivel} onChange={setS('nivel')}>
+                  {Object.keys(NIVEL_LABEL).map(k=><option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Estado do Contrato</label>
+                <select className="field-select" value={newSponsor.estadoContrato} onChange={setS('estadoContrato')}>
+                  {Object.keys(ESTADO_LABEL).map(k=><option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="inline-form-actions">
+              <button type="button" className="btn-secondary" onClick={() => setAddingSponsor(false)}>Cancelar</button>
+              <button type="submit" className="btn-primary-sm">Guardar</button>
+            </div>
+          </form>
+        )}
+
+        {sponsors.length === 0 && !addingSponsor
+          ? <p className="section-empty">Nenhum sponsor registado.</p>
+          : sponsors.map(s => (
+            <div key={s.id} className="crm-card">
+              <div className="crm-card-header">
+                <span className="crm-nivel">{NIVEL_LABEL[s.nivel]}</span>
+                <div className="crm-card-name">{s.nome}{s.empresa && <span className="crm-empresa"> — {s.empresa}</span>}</div>
+                <span className={`crm-estado estado-${s.estadoContrato?.toLowerCase()}`}>{ESTADO_LABEL[s.estadoContrato]}</span>
+                <span className="crm-cache">{fmtCur(s.valorPatrocinio)}</span>
+                <button className="btn-delete" disabled={busyS.has(s.id)} onClick={() => deleteSponsor(s.id, s.nome)}>✕</button>
+              </div>
+              {s.email && <div className="crm-card-meta"><span>✉ {s.email}</span></div>}
+            </div>
+          ))
+        }
+      </section>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ORÇAMENTO TAB
+   ════════════════════════════════════════════════════════════════ */
+/* ── CssBarChart — gráfico de barras horizontais sem dependências externas ── */
+function CssBarChart({ linhas }) {
+  const maxVal = Math.max(...linhas.flatMap(l => [Number(l.previsto)||0, Number(l.real)||0]), 1);
+  return (
+    <div className="css-bar-chart">
+      <div className="css-bar-legend">
+        <span><span className="css-legend-dot" style={{ background: '#a78bfa' }} />Previsto</span>
+        <span><span className="css-legend-dot" style={{ background: '#c084fc' }} />Real</span>
       </div>
+      {linhas.map(l => {
+        const prev = Number(l.previsto) || 0;
+        const real = Number(l.real)     || 0;
+        const over = real > prev;
+        return (
+          <div key={l.categoria} className="css-bar-group">
+            <span className="css-bar-label">{l.categoria}</span>
+            <div className="css-bar-tracks">
+              <div className="css-bar-row">
+                <div className="css-bar css-bar-previsto"
+                  style={{ width: `${(prev / maxVal) * 100}%` }}
+                  title={`Previsto: ${fmtCurrency(prev)}`}
+                />
+                <span className="css-bar-value">{fmtCurrency(prev)}</span>
+              </div>
+              <div className="css-bar-row">
+                <div className="css-bar css-bar-real"
+                  style={{ width: `${(real / maxVal) * 100}%`, background: over ? '#ef4444' : '#22c55e' }}
+                  title={`Real: ${fmtCurrency(real)}`}
+                />
+                <span className="css-bar-value" style={{ color: over ? '#ef4444' : '#22c55e' }}>
+                  {fmtCurrency(real)}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OrcamentoTab({ eventoId, resumo, loading, orcamentoMaximo, onRefresh, toast }) {
+  const [newCat, setNewCat] = useState({ categoria: '', valorPrevisto: '' });
+  const [saving, setSaving] = useState(false);
+
+  async function upsertCategoria(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post(`/eventos/${eventoId}/orcamento-categorias`, {
+        categoria: newCat.categoria,
+        valorPrevisto: parseFloat(newCat.valorPrevisto) || 0,
+      });
+      setNewCat({ categoria: '', valorPrevisto: '' });
+      onRefresh();
+      toast('Previsão guardada.');
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+    finally { setSaving(false); }
+  }
+
+  const desvioColor = d => d > 0 ? '#ef4444' : d < 0 ? '#22c55e' : '#9ca3af';
+
+  return (
+    <div className="detalhe-sections">
+      <section className="detalhe-section">
+        <div className="section-title-row">
+          <h3>Previsão vs. Real por Categoria</h3>
+          <button className="btn-add" onClick={onRefresh}>↻</button>
+        </div>
+
+        {loading && <p className="section-empty">A calcular…</p>}
+
+        {!loading && resumo && (
+          <>
+            {/* Alertas */}
+            {resumo.excedeOrcamento && (
+              <div className="orcamento-alerta danger">
+                ⚠ Total real ({fmtCur(resumo.totalReal)}) excede o orçamento máximo do evento ({fmtCur(resumo.orcamentoMaximo)}).
+              </div>
+            )}
+
+            {/* Gráfico de barras horizontais em CSS puro */}
+            {resumo.linhas.length > 0 && <CssBarChart linhas={resumo.linhas} />}
+
+            {/* Tabela de desvios */}
+            <div className="orcamento-table-wrap">
+              <table className="orcamento-table">
+                <thead>
+                  <tr><th>Categoria</th><th>Previsto</th><th>Real</th><th>Desvio</th><th>%</th></tr>
+                </thead>
+                <tbody>
+                  {resumo.linhas.map(l => (
+                    <tr key={l.categoria}>
+                      <td>{l.categoria}</td>
+                      <td>{fmtCur(l.previsto)}</td>
+                      <td>{fmtCur(l.real)}</td>
+                      <td style={{ color: desvioColor(l.desvio), fontWeight: 600 }}>
+                        {l.desvio > 0 ? '+' : ''}{fmtCur(l.desvio)}
+                      </td>
+                      <td style={{ color: desvioColor(l.desvio) }}>
+                        {l.desvio > 0 ? '+' : ''}{l.desvioPerc}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ fontWeight: 700 }}>
+                    <td>Total</td>
+                    <td>{fmtCur(resumo.totalPrevisto)}</td>
+                    <td>{fmtCur(resumo.totalReal)}</td>
+                    <td style={{ color: desvioColor(resumo.totalDesvio) }}>
+                      {resumo.totalDesvio > 0 ? '+' : ''}{fmtCur(resumo.totalDesvio)}
+                    </td>
+                    <td style={{ color: desvioColor(resumo.totalDesvio) }}>
+                      {resumo.totalDesvio > 0 ? '+' : ''}{resumo.totalDesvioPerc}%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* Adicionar previsão */}
+        <form className="inline-form" onSubmit={upsertCategoria} noValidate style={{ marginTop: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>Definir valor previsto por categoria:</p>
+          <div className="inline-form-grid">
+            <div className="field">
+              <label>Categoria</label>
+              <input list="cats-list" value={newCat.categoria} onChange={e => setNewCat(p=>({...p,categoria:e.target.value}))} placeholder="Ex: Venue" required />
+              <datalist id="cats-list">
+                {['Venue','Catering','AV / Técnico','Marketing','Staff','Decoração','Transporte','Outro'].map(c => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div className="field">
+              <label>Valor Previsto (€)</label>
+              <input type="number" min="0" step="0.01" value={newCat.valorPrevisto} onChange={e => setNewCat(p=>({...p,valorPrevisto:e.target.value}))} placeholder="0.00" required />
+            </div>
+          </div>
+          <div className="inline-form-actions">
+            <button type="submit" className="btn-primary-sm" disabled={saving}>{saving ? <span className="spinner" /> : 'Guardar previsão'}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FORNECEDORES TAB
+   ════════════════════════════════════════════════════════════════ */
+const TIPO_LABEL = { Fatura: 'Fatura', MaterialGrafico: 'Material Gráfico', Outro: 'Outro' };
+const fmtBytes   = b => b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
+const fmtDateFn  = s => new Date(s).toLocaleDateString('pt-PT', { day:'2-digit', month:'short', year:'numeric' });
+
+function FornecedoresTab({ eventoId, fornecedores, setFornecedores, loadFornecedores,
+                           addingFornecedor, setAddingFornecedor, toast }) {
+  const [newForn,       setNewForn]       = useState({ nome:'', email:'', nif:'', categoria:'' });
+  const [busy,          setBusy]          = useState(new Set());
+  const [acessoModal,   setAcessoModal]   = useState(null); // fornecedor alvo do modal
+  const [acessoForm,    setAcessoForm]    = useState({ email:'', password:'', nome:'' });
+  const [acessoBusy,    setAcessoBusy]    = useState(false);
+  const [acessoErr,     setAcessoErr]     = useState('');
+
+  async function submitFornecedor(e) {
+    e.preventDefault();
+    try {
+      const f = await api.post('/fornecedores', { ...newForn, eventoId });
+      setFornecedores(p => [...p, f]);
+      setAddingFornecedor(false);
+      setNewForn({ nome:'', email:'', nif:'', categoria:'' });
+      toast('Fornecedor adicionado.');
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+  }
+
+  async function deleteFornecedor(id, nome) {
+    if (!window.confirm(`Remover fornecedor "${nome}"?`)) return;
+    setBusy(p => new Set([...p,id]));
+    try {
+      await api.delete(`/fornecedores/${id}`);
+      setFornecedores(p => p.filter(f => f.id !== id));
+      toast(`"${nome}" removido.`);
+    } catch(ex) { toast(ex.message||'Erro.','error'); }
+    finally { setBusy(p => { const n=new Set(p); n.delete(id); return n; }); }
+  }
+
+  const setF  = k => e => setNewForn(p => ({...p,[k]:e.target.value}));
+  const setAF = k => e => setAcessoForm(p => ({...p,[k]:e.target.value}));
+
+  function openAcessoModal(f) {
+    setAcessoModal(f);
+    setAcessoForm({ email: f.email || '', password: '', nome: f.nome });
+    setAcessoErr('');
+  }
+
+  async function submitAcesso(e) {
+    e.preventDefault();
+    setAcessoErr(''); setAcessoBusy(true);
+    try {
+      await api.post(`/fornecedores/${acessoModal.id}/criar-acesso`, {
+        email:    acessoForm.email,
+        password: acessoForm.password,
+        nome:     acessoForm.nome || acessoModal.nome,
+      });
+      toast(`Acesso ao portal criado para ${acessoModal.nome}.`);
+      setAcessoModal(null);
+      loadFornecedores(); // reload para mostrar temAcesso=true
+    } catch(ex) {
+      setAcessoErr(ex.message || 'Erro ao criar acesso.');
+    } finally {
+      setAcessoBusy(false);
+    }
+  }
+
+  return (
+    <div className="detalhe-sections">
+      <section className="detalhe-section">
+        <div className="section-title-row">
+          <h3>Fornecedores</h3>
+          <span className="section-count">{fornecedores.length}</span>
+          <button className={`btn-add${addingFornecedor?' active':''}`} onClick={() => setAddingFornecedor(v=>!v)}>
+            {addingFornecedor ? '✕' : '+ Adicionar'}
+          </button>
+        </div>
+
+        {addingFornecedor && (
+          <form className="inline-form" onSubmit={submitFornecedor} noValidate>
+            <div className="inline-form-grid">
+              <div className="field"><label>Nome *</label><input value={newForn.nome} onChange={setF('nome')} required /></div>
+              <div className="field"><label>Email</label><input type="email" value={newForn.email} onChange={setF('email')} /></div>
+              <div className="field"><label>NIF</label><input value={newForn.nif} onChange={setF('nif')} /></div>
+              <div className="field"><label>Categoria</label><input value={newForn.categoria} onChange={setF('categoria')} placeholder="Ex: Catering" /></div>
+            </div>
+            <div className="inline-form-actions">
+              <button type="button" className="btn-secondary" onClick={() => setAddingFornecedor(false)}>Cancelar</button>
+              <button type="submit" className="btn-primary-sm">Guardar</button>
+            </div>
+          </form>
+        )}
+
+        {fornecedores.length === 0 && !addingFornecedor
+          ? <p className="section-empty">Nenhum fornecedor registado.</p>
+          : fornecedores.map(f => (
+            <div key={f.id} className="crm-card">
+              <div className="crm-card-header">
+                <div className="crm-card-name">{f.nome}{f.categoria && <span className="crm-empresa"> — {f.categoria}</span>}</div>
+                {f.nif && <span style={{ fontSize:12, color:'var(--text)' }}>NIF: {f.nif}</span>}
+                {f.temAcesso
+                  ? <span className="fornecedor-acesso-badge" title={`Portal: ${f.emailAcesso}`}>✓ Portal activo</span>
+                  : <button className="btn-alocar" onClick={() => openAcessoModal(f)} title="Criar conta de acesso ao portal">Criar acesso</button>
+                }
+                <button className="btn-delete" disabled={busy.has(f.id)} onClick={() => deleteFornecedor(f.id, f.nome)}>✕</button>
+              </div>
+              {f.email && <div className="crm-card-meta"><span>✉ {f.email}</span>{f.temAcesso && <span style={{ fontSize:11, color:'var(--success)' }}>· {f.emailAcesso}</span>}</div>}
+              {/* Ficheiros */}
+              {f.ficheiros && f.ficheiros.length > 0 && (
+                <div className="ficheiros-list" style={{ marginTop: 10 }}>
+                  {f.ficheiros.map(ff => (
+                    <div key={ff.id} className="ficheiro-item">
+                      <span className="ficheiro-icon">📎</span>
+                      <div className="ficheiro-info">
+                        <span className="ficheiro-nome">{ff.nomeOriginal}</span>
+                        <span className="ficheiro-meta">{TIPO_LABEL[ff.tipo]} · {fmtBytes(ff.tamanhoBytes)} · {fmtDateFn(ff.dataUpload)}</span>
+                      </div>
+                      <a href={`/api/fornecedores/ficheiros/${ff.id}/download`} className="btn-pdf" download={ff.nomeOriginal}>Descarregar</a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </section>
+
+      {/* Modal: criar acesso ao portal */}
+      {acessoModal && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setAcessoModal(null)}>
+          <div className="modal" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>Criar acesso ao portal</h3>
+                <p style={{ margin:'4px 0 0', fontSize:13, color:'var(--text)' }}>{acessoModal.nome}</p>
+              </div>
+              <button className="modal-close" onClick={() => setAcessoModal(null)}>✕</button>
+            </div>
+            <form className="modal-form" onSubmit={submitAcesso} noValidate>
+              <div className="field">
+                <label>Nome do utilizador</label>
+                <input type="text" value={acessoForm.nome} onChange={setAF('nome')} placeholder={acessoModal.nome} />
+              </div>
+              <div className="field">
+                <label>Email *</label>
+                <input type="email" value={acessoForm.email} onChange={setAF('email')} required autoFocus />
+              </div>
+              <div className="field">
+                <label>Password inicial * (mín. 6 caracteres)</label>
+                <input type="password" value={acessoForm.password} onChange={setAF('password')} required minLength={6} />
+              </div>
+              {acessoErr && <p className="inline-form-error">{acessoErr}</p>}
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setAcessoModal(null)} disabled={acessoBusy}>Cancelar</button>
+                <button type="submit" className="btn-primary-sm" disabled={acessoBusy}>
+                  {acessoBusy ? <span className="spinner" /> : 'Criar acesso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

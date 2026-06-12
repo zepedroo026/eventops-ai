@@ -57,7 +57,7 @@ public class ValidacaoTests
         using var db          = TestHelpers.CreateDb(nameof(CriarAtividade_HoraFimAnteriorAInicio_DeveDevolver400));
         var (eventoId, salaId, _, _) = await SeedAsync(db);
 
-        var ctrl   = new AtividadesController(db).WithUser();
+        var ctrl   = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var result = await ctrl.Create(new Atividade
         {
             Nome       = "Inválida",
@@ -79,7 +79,7 @@ public class ValidacaoTests
         var (eventoId, salaId, _, _) = await SeedAsync(db);
 
         var hora   = new DateTime(2024, 6, 1, 10, 0, 0, DateTimeKind.Utc);
-        var ctrl   = new AtividadesController(db).WithUser();
+        var ctrl   = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var result = await ctrl.Create(new Atividade
         {
             Nome       = "Inválida",

@@ -6,6 +6,7 @@ import { ToastProvider } from './components/Toast';
 import AdminDashboard from './pages/AdminDashboard';
 import Dashboard from './pages/Dashboard';
 import EventoDetalhe from './pages/EventoDetalhe';
+import FornecedorPortal from './pages/FornecedorPortal';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Register from './pages/Register';
@@ -25,8 +26,9 @@ export default function App() {
               <Route path="/dashboard"        element={<Dashboard />} />
               <Route path="/staff-dashboard"  element={<StaffDashboard />} />
               <Route path="/admin"            element={<AdminDashboard />} />
-              <Route path="/perfil"           element={<Profile />} />
-              <Route path="/eventos/:id"      element={<EventoDetalhe />} />
+              <Route path="/perfil"              element={<Profile />} />
+              <Route path="/eventos/:id"        element={<EventoDetalhe />} />
+              <Route path="/fornecedor-portal"  element={<FornecedorPortal />} />
             </Route>
           </Route>
 

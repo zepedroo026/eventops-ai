@@ -117,6 +117,74 @@ public class EventosController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+    // GET /api/eventos/{id}/orcamento-resumo
+    [HttpGet("{id:int}/orcamento-resumo")]
+    public async Task<ActionResult<OrcamentoResumoDto>> GetOrcamentoResumo(int id)
+    {
+        var evento = await db.Eventos.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id);
+        if (evento is null) return NotFound();
+
+        var previstos = await db.OrcamentosCategoria.AsNoTracking()
+            .Where(o => o.EventoId == id).ToListAsync();
+
+        var despesas  = await db.Despesas.AsNoTracking()
+            .Where(d => d.EventoId == id).ToListAsync();
+
+        var realPorCat = despesas
+            .GroupBy(d => d.Categoria ?? "Sem categoria")
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Valor));
+
+        var todasCats = previstos.Select(p => p.Categoria)
+            .Union(realPorCat.Keys).Distinct();
+
+        var linhas = todasCats.Select(cat =>
+        {
+            var prev   = previstos.FirstOrDefault(p => p.Categoria == cat)?.ValorPrevisto ?? 0m;
+            var real   = realPorCat.GetValueOrDefault(cat, 0m);
+            var desvio = real - prev;
+            var pct    = prev > 0 ? Math.Round(desvio / prev * 100, 2) : 0m;
+            return new OrcamentoLinhaDto(cat, prev, real, desvio, pct);
+        }).OrderBy(l => l.Categoria).ToList();
+
+        var totPrev    = linhas.Sum(l => l.Previsto);
+        var totReal    = linhas.Sum(l => l.Real);
+        var totDesvio  = totReal - totPrev;
+        var totPct     = totPrev > 0 ? Math.Round(totDesvio / totPrev * 100, 2) : 0m;
+
+        return Ok(new OrcamentoResumoDto(
+            linhas, totPrev, totReal, totDesvio, totPct,
+            evento.OrcamentoMaximo,
+            totReal > evento.OrcamentoMaximo));
+    }
+
+    // POST /api/eventos/{id}/orcamento-categorias  (upsert previsto por categoria)
+    [HttpPost("{id:int}/orcamento-categorias")]
+    public async Task<IActionResult> UpsertOrcamentoCategoria(
+        int id, [FromBody] OrcamentoCategoriaRequest req)
+    {
+        if (!await db.Eventos.AnyAsync(e => e.Id == id)) return NotFound();
+
+        var existing = await db.OrcamentosCategoria
+            .FirstOrDefaultAsync(o => o.EventoId == id && o.Categoria == req.Categoria);
+
+        if (existing is null)
+            db.OrcamentosCategoria.Add(new OrcamentoCategoria
+                { EventoId = id, Categoria = req.Categoria, ValorPrevisto = req.ValorPrevisto });
+        else
+            existing.ValorPrevisto = req.ValorPrevisto;
+
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
 }
 
 public record AtualizarNotasRequest(string? Notas);
+public record OrcamentoCategoriaRequest(string Categoria, decimal ValorPrevisto);
+public record OrcamentoLinhaDto(
+    string Categoria, decimal Previsto, decimal Real,
+    decimal Desvio, decimal DesvioPerc);
+public record OrcamentoResumoDto(
+    IEnumerable<OrcamentoLinhaDto> Linhas,
+    decimal TotalPrevisto, decimal TotalReal,
+    decimal TotalDesvio, decimal TotalDesvioPerc,
+    decimal OrcamentoMaximo, bool ExcedeOrcamento);

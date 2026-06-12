@@ -10,9 +10,10 @@ const PERFIL_COLORS = {
   Administrador: { bg: 'rgba(239,68,68,.1)',  color: '#ef4444', border: 'rgba(239,68,68,.25)'  },
   Organizador:   { bg: 'rgba(170,59,255,.1)', color: '#aa3bff', border: 'rgba(170,59,255,.25)' },
   Staff:         { bg: 'rgba(34,197,94,.1)',  color: '#22c55e', border: 'rgba(34,197,94,.25)'  },
+  Fornecedor:    { bg: 'rgba(245,158,11,.1)', color: '#f59e0b', border: 'rgba(245,158,11,.25)' },
 };
-const PERFIL_NOMES  = { 0: 'Administrador', 1: 'Organizador', 2: 'Staff' };
-const PERFIL_VALUES = { Administrador: 0, Organizador: 1, Staff: 2 };
+const PERFIL_NOMES  = { 0: 'Administrador', 1: 'Organizador', 2: 'Staff', 3: 'Fornecedor' };
+const PERFIL_VALUES = { Administrador: 0, Organizador: 1, Staff: 2 }; // Fornecedor não disponível via UI admin — criado por criar-acesso
 
 function PerfilBadge({ perfil }) {
   const s = PERFIL_COLORS[perfil] ?? PERFIL_COLORS.Staff;
@@ -290,17 +291,22 @@ export default function AdminDashboard() {
                           <span style={{ fontSize: 12, color: 'var(--text)' }}>—</span>
                         ) : (
                           <div className="admin-actions">
-                            <select
-                              className="admin-perfil-select"
-                              value={PERFIL_VALUES[u.perfil] ?? 2}
-                              disabled={busy}
-                              onChange={e => handleAlterarPerfil(u, Number(e.target.value))}
-                              title="Alterar perfil"
-                            >
-                              <option value={0}>Administrador</option>
-                              <option value={1}>Organizador</option>
-                              <option value={2}>Staff</option>
-                            </select>
+                            {u.perfil === 'Fornecedor'
+                              ? <span title="Perfil gerido via Portal do Fornecedor"><PerfilBadge perfil="Fornecedor" /></span>
+                              : (
+                                <select
+                                  className="admin-perfil-select"
+                                  value={PERFIL_VALUES[u.perfil] ?? 2}
+                                  disabled={busy}
+                                  onChange={e => handleAlterarPerfil(u, Number(e.target.value))}
+                                  title="Alterar perfil"
+                                >
+                                  <option value={0}>Administrador</option>
+                                  <option value={1}>Organizador</option>
+                                  <option value={2}>Staff</option>
+                                </select>
+                              )
+                            }
                             <button
                               className={`admin-btn-block ${u.bloqueado ? 'unblock' : 'block'}`}
                               disabled={busy}

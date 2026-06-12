@@ -28,11 +28,16 @@ logs/
 node_modules/
 dist/
 .next/
+package-lock.json
+**/package-lock*.json
 
 # SQLite (base de dados local de desenvolvimento)
 *.db
 *.db-shm
 *.db-wal
+
+# Uploads de utilizadores (nunca commitar ficheiros reais)
+src/EventOps.API/wwwroot/uploads/
 
 # OS
 .DS_Store

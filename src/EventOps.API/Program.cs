@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using EventOps.API.Services;
+using Microsoft.Extensions.Configuration;
 using EventOps.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,14 @@ else
 
 // ── Serviços ────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<TokenService>();
+
+builder.Services.AddHttpClient("anthropic", client =>
+{
+    client.BaseAddress = new Uri("https://api.anthropic.com/");
+    // timeout complementar definido no serviço com CancellationTokenSource
+    client.Timeout = TimeSpan.FromSeconds(35);
+});
+builder.Services.AddScoped<IAnaliseIAService, AnaliseIAService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -78,14 +87,18 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ── Inicializar base de dados ───────────────────────────────────────────────
+// ── Inicializar base de dados + seed ───────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db     = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
     if (app.Environment.IsDevelopment())
         db.Database.EnsureCreated(); // Cria o eventops.db a partir do model sem migrations
     else
         db.Database.Migrate();       // Aplica as migrations do PostgreSQL
+
+    await DbSeeder.SeedAdminAsync(db, config, app.Environment.IsDevelopment());
 }
 
 // ── Pipeline HTTP ───────────────────────────────────────────────────────────

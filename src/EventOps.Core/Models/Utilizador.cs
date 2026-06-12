@@ -1,6 +1,6 @@
 namespace EventOps.Core.Models;
 
-public enum Perfil { Administrador, Organizador, Staff }
+public enum Perfil { Administrador, Organizador, Staff, Fornecedor }
 
 public class Utilizador
 {
@@ -11,5 +11,7 @@ public class Utilizador
     public Perfil Perfil { get; set; }
     public bool Bloqueado { get; set; } = false;
     public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
+    public int? FornecedorId { get; set; }
+    public Fornecedor? FornecedorAssociado { get; set; }
     public ICollection<Evento> Eventos { get; set; } = new List<Evento>();
 }

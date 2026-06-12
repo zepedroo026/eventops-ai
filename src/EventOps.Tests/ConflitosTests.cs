@@ -64,7 +64,7 @@ public class ConflitosTests
         );
         await db.SaveChangesAsync();
 
-        var ctrl = new AtividadesController(db).WithUser();
+        var ctrl = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var conflitos = OkList<ConflitosDto>(await ctrl.GetConflitos(eventoId));
 
         Assert.Single(conflitos);
@@ -86,7 +86,7 @@ public class ConflitosTests
         );
         await db.SaveChangesAsync();
 
-        var ctrl = new AtividadesController(db).WithUser();
+        var ctrl = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var conflitos = OkList<ConflitosDto>(await ctrl.GetConflitos(eventoId));
 
         Assert.Empty(conflitos);
@@ -114,7 +114,7 @@ public class ConflitosTests
         );
         await db.SaveChangesAsync();
 
-        var ctrl = new AtividadesController(db).WithUser();
+        var ctrl = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var conflitos = OkList<ConflitosDto>(await ctrl.GetConflitos(eventoId));
 
         // Apenas conflito de staff (salas diferentes)
@@ -141,7 +141,7 @@ public class ConflitosTests
         );
         await db.SaveChangesAsync();
 
-        var ctrl = new AtividadesController(db).WithUser();
+        var ctrl = new AtividadesController(db, new NullAnaliseIAService()).WithUser();
         var conflitos = OkList<ConflitosDto>(await ctrl.GetConflitos(eventoId));
 
         Assert.Empty(conflitos);
