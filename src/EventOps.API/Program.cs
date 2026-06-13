@@ -7,6 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
+// Faz o Npgsql aceitar DateTime com Kind=Unspecified como se fossem UTC,
+// evitando a excepção "Cannot write DateTime with Kind=Unspecified to timestamptz".
+// Deve ficar antes de qualquer inicialização do DbContext/Npgsql.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Porta dinâmica para o Render (injeta PORT) ───────────────────────────────
