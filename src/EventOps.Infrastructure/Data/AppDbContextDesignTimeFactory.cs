@@ -11,6 +11,10 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
 {
     public AppDbContext CreateDbContext(string[] args)
     {
+        // Deve espelhar o switch activo em Program.cs para que o snapshot gerado
+        // pelo dotnet-ef use os mesmos mapeamentos de tipo que o runtime usa.
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
         var opts = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=eventops_design;Username=postgres",
                 npgsql => npgsql.MigrationsAssembly("EventOps.Infrastructure"))
